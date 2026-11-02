@@ -84,6 +84,11 @@
                         <ComboBoxItem Content="{x:Static resx:ResUI.menuSystemProxyPac}" />
                     </ComboBox>
 
+                    <CheckBox x:Name="chkEnableWarp" Content="WARP"
+                        Margin="{StaticResource MarginLeftRight8}" VerticalAlignment="Center"
+                        AutomationProperties.Name="Connect through WARP"
+                        ToolTip="Client → WARP → selected server" />
+
                     <ComboBox
                         x:Name="cmbRoutings2"
                         Width="160"

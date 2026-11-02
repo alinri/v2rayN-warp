@@ -69,6 +69,8 @@ public class CoreManager
         var result = await CoreConfigHandler.GenerateClientConfig(node, fileName);
         if (result.Success != true)
         {
+            if (_config.WarpChainItem.Enabled)
+                await CoreStop();
             await UpdateFunc(true, result.Msg);
             return;
         }

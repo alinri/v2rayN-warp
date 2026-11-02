@@ -34,6 +34,7 @@ public class Config
     public List<KeyEventItem> GlobalHotkeys { get; set; }
     public List<CoreTypeItem> CoreTypeItem { get; set; }
     public SimpleDNSItem SimpleDNSItem { get; set; }
+    public WarpChainItem WarpChainItem { get; set; } = new();
 
     #endregion other entities
 }

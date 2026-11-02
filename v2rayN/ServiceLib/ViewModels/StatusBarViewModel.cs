@@ -88,6 +88,9 @@ public class StatusBarViewModel : MyReactiveObject
     public bool EnableTun { get; set; }
 
     [Reactive]
+    public bool EnableWarp { get; set; }
+
+    [Reactive]
     public bool BlIsNonWindows { get; set; }
 
     #endregion UI
@@ -100,6 +103,7 @@ public class StatusBarViewModel : MyReactiveObject
         RunningServerToolTipText = "-";
         BlSystemProxyPacVisible = Utils.IsWindows();
         BlIsNonWindows = Utils.IsNonWindows();
+        EnableWarp = _config.WarpChainItem.Enabled;
 
         if (_config.TunModeItem.EnableTun && AllowEnableTun())
         {
@@ -111,6 +115,9 @@ public class StatusBarViewModel : MyReactiveObject
         }
 
         #region WhenAnyValue && ReactiveCommand
+
+        this.WhenAnyValue(x => x.EnableWarp).Skip(1)
+            .Subscribe(async _ => await DoEnableWarp());
 
         this.WhenAnyValue(
                 x => x.SelectedRouting,
@@ -460,6 +467,25 @@ public class StatusBarViewModel : MyReactiveObject
             return;
         }
         await SetListenerType((ESysProxyType)SystemProxySelected);
+    }
+
+    private async Task DoEnableWarp()
+    {
+        if (_config.WarpChainItem.Enabled == EnableWarp) return;
+        if (EnableWarp)
+        {
+            try { _ = JsonNode.Parse(WarpChainService.ReadProfile(_config)); }
+            catch
+            {
+                EnableWarp = false;
+                NoticeManager.Instance.SendMessageEx("Import your private WARP profile into this app's guiConfigs folder first.");
+                return;
+            }
+        }
+        _config.WarpChainItem.Enabled = EnableWarp;
+        await ConfigHandler.SaveConfig(_config);
+        NoticeManager.Instance.SendMessageEx(EnableWarp ? "Client → WARP → selected server" : "WARP off: connecting to the selected server directly");
+        AppEvents.ReloadRequested.Publish();
     }
 
     private async Task DoEnableTun(bool c)

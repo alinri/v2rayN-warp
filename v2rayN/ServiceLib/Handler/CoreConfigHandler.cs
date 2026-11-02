@@ -33,12 +33,36 @@ public static class CoreConfigHandler
         {
             return result;
         }
+        // The TUN pre-service only feeds the main Xray core over loopback.
+        if (config.WarpChainItem.Enabled && Path.GetFileName(fileName) != Global.CorePreConfigFileName)
+        {
+            result = ApplyWarp(config, result, AppManager.Instance.GetCoreType(node, node.ConfigType), node.ConfigType == EConfigType.Custom);
+            if (!result.Success) return result;
+        }
         if (fileName.IsNotEmpty() && result.Data != null)
         {
             await File.WriteAllTextAsync(fileName, result.Data.ToString());
+            if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
+                File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
 
         return result;
+    }
+
+    private static RetResult ApplyWarp(Config config, RetResult result, ECoreType coreType, bool custom = false)
+    {
+        if (!result.Success || !config.WarpChainItem.Enabled) return result;
+        if (coreType != ECoreType.Xray || custom)
+            return new RetResult(false, "WARP needs a regular Xray profile. Select Xray as the core.");
+        try
+        {
+            result.Data = WarpChainService.Apply(config, result.Data!.ToString()!);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            return new RetResult(false, ex is InvalidOperationException ? ex.Message : "Cannot load the private WARP profile. Check its format and permissions.");
+        }
     }
 
     private static async Task<RetResult> GenerateClientCustomConfig(ProfileItem node, string? fileName)
@@ -101,11 +125,14 @@ public static class CoreConfigHandler
         {
             result = await new CoreConfigV2rayService(config).GenerateClientSpeedtestConfig(selecteds);
         }
+        result = ApplyWarp(config, result, coreType);
         if (result.Success != true)
         {
             return result;
         }
         await File.WriteAllTextAsync(fileName, result.Data.ToString());
+        if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
+            File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         return result;
     }
 
@@ -124,12 +151,15 @@ public static class CoreConfigHandler
         {
             result = await new CoreConfigV2rayService(config).GenerateClientSpeedtestConfig(node, port);
         }
+        result = ApplyWarp(config, result, AppManager.Instance.GetCoreType(node, node.ConfigType));
         if (result.Success != true)
         {
             return result;
         }
 
         await File.WriteAllTextAsync(fileName, result.Data.ToString());
+        if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
+            File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         return result;
     }
 }

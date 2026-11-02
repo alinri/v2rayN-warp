@@ -19,6 +19,7 @@ public partial class StatusBarView
 
         this.WhenActivated(disposables =>
         {
+            this.Bind(ViewModel, vm => vm.EnableWarp, v => v.chkEnableWarp.IsChecked).DisposeWith(disposables);
             //system proxy
             this.OneWayBind(ViewModel, vm => vm.BlSystemProxyClear, v => v.menuSystemProxyClear2.Visibility, conversionHint: BooleanToVisibilityHint.UseHidden, vmToViewConverterOverride: new BooleanToVisibilityTypeConverter()).DisposeWith(disposables);
             this.OneWayBind(ViewModel, vm => vm.BlSystemProxySet, v => v.menuSystemProxySet2.Visibility, conversionHint: BooleanToVisibilityHint.UseHidden, vmToViewConverterOverride: new BooleanToVisibilityTypeConverter()).DisposeWith(disposables);

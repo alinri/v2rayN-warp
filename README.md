@@ -1,3 +1,5 @@
+> Personal fork: **WARP** checkbox beside System Proxy. See [setup and verification](PERSONAL-WARP.md). Based on v2rayN 7.17.3; private credentials are not included.
+
 # v2rayN
 
 A GUI client for Windows, Linux and macOS, support [Xray](https://github.com/XTLS/Xray-core)
