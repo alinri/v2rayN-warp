@@ -478,7 +478,7 @@ public class StatusBarViewModel : MyReactiveObject
             catch
             {
                 EnableWarp = false;
-                NoticeManager.Instance.SendMessageEx("Import your private WARP profile into this app's guiConfigs folder first.");
+                NoticeManager.Instance.SendMessageEx("Click Create WARP to create and test a WARP configuration first.");
                 return;
             }
         }

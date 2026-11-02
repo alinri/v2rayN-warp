@@ -19,7 +19,25 @@ Open the personal app, select the actual server profile, and tick **WARP**. For 
 
 The physical Ethernet/Wi-Fi interface is selected when generating the config, and only the WARP socket binds to it. After switching networks, reload the connection. A missing WARP profile or incompatible selected core stops this build's previous connection and displays an error. It does not fall back to an unprotected direct server socket when WARP is enabled.
 
-To use another registration, replace the private `guiConfigs/warp-entry.private.json` with an Xray MASQUE WARP outbound (or a full Xray config containing one). Keep permissions owner-only. This build does not register a new WARP account automatically. Updating the application from upstream would remove the custom checkbox; use builds from this fork.
+To use another registration, replace the private `guiConfigs/warp-entry.private.json` with an Xray MASQUE WARP outbound (or a full Xray config containing one). Keep permissions owner-only. The desktop Create WARP dialog can register a separate MASQUE device after explicit acceptance of Cloudflare terms. Updating the application from upstream would remove the custom checkbox; use builds from this fork.
+
+## Create a WARP configuration inside the app
+
+In the desktop status bar, click **Create WARP** beside the WARP checkbox.
+
+1. Keep **Use current proxy to register** enabled if the Cloudflare API is unreachable directly. A working selected proxy is required for this option; it uses this app's local mixed port. Uncheck it to use the normal network route.
+2. Read the linked Cloudflare terms and explicitly accept them, then click **Create**. A separate device is registered, so the active WARP device is not re-enrolled or changed.
+3. A fresh P-256 key is generated locally and enrolled for MASQUE. Only public keys are sent to Cloudflare. The result uses HTTP/2 on the dedicated H2 edge, Safari fingerprint and endpoint certificate pinning.
+4. The app saves a private draft and runs an independent connectivity test over the physical interface, requiring `warp=on` or `warp=plus`. **Test** retries that test without creating another device.
+5. After success, **Use this config** saves the tested profile and backs up the previous one. If the main WARP checkbox is already enabled, the selected proxy reconnects through the new profile; otherwise enable it when ready.
+
+The existing profile is loaded for testing when no draft exists. The status explicitly identifies whether the current profile or a draft was loaded. Creating a profile does not silently replace the active one. Closing during creation/testing cancels the operation. Failed enrollment attempts trigger best-effort cleanup of only the device created by that attempt.
+
+Drafts, active profiles, backups and generated runtime configurations are written atomically with owner-only file permissions on macOS/Linux. No registration token or private key is printed in UI logs, committed to source or embedded in the application bundle. Keep private configuration files out of shared folders. Closing the dialog retains a successfully saved draft for a later test.
+
+The registration API is not a stable public Cloudflare developer API and can change or rate-limit requests. Errors leave the current active profile in place. Protocol references: [3x-ui's registration implementation](https://github.com/MHSanaei/3x-ui/blob/main/internal/web/service/integration/warp.go), [Xray's MASQUE WARP guide](https://xtls.github.io/en/document/level-2/warp.html), and [usque's HTTP/2 endpoints](https://github.com/Diniboy1123/usque/wiki/HTTP-2-support).
+
+The creation dialog is implemented for the Avalonia desktop build used on this Mac. The Windows WPF checkbox remains wired; a Windows creation dialog has not been added or tested here.
 
 ## Build and checks
 
@@ -27,7 +45,8 @@ To use another registration, replace the private `guiConfigs/warp-entry.private.
 git submodule update --init --depth 1
 dotnet restore v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -r osx-arm64 -p:Configuration=Release
 dotnet publish v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r osx-arm64 --self-contained true -o dist/publish
-dotnet run --project tests/WarpChain.Tests.csproj
+dotnet publish tests/WarpChain.Tests.csproj -c Release -r osx-arm64 --self-contained true -o dist/tests-net8
+./dist/tests-net8/WarpChain.Tests
 python3 package-personal-macos.py --core-bin-dir /path/to/official/bin --xray /path/to/recent/xray
 ```
 
@@ -38,3 +57,7 @@ Verified on the original Mac on 3 November 2026: enabling the actual checkbox pr
 ## استفادهٔ کوتاه
 
 برنامهٔ **v2rayN WARP** را باز کن، پروفایل واقعی سرور را انتخاب کن و کنار تنظیم پروکسی تیک **WARP** را بزن. تیک روشن: دستگاه ← WARP ← سرور. تیک خاموش: اتصال عادی به همان سرور. تنظیمات برنامهٔ قبلی جدا می‌ماند. گزینهٔ localhost مربوط به واسط قدیمی را برای این تیک انتخاب نکن.
+
+برای ساخت کانفیگ تازه، کنار تیک WARP روی **Create WARP** بزن؛ شرایط Cloudflare را خودت بپذیر و **Create** را بزن. برنامه کانفیگ تازه را می‌سازد و تست می‌کند. پس از موفقیت **Use this config** را بزن؛ کانفیگ قبلی پشتیبان می‌شود. گزینهٔ **Use current proxy to register** برای ثبت از مسیر پروکسی فعال همین برنامه است.
+
+Generator verification: the registration flow is covered by mocked Cloudflare HTTP responses, current and legacy Xray `wg` output, enrollment key matching, response-error cleanup, and owner-only atomic storage/backup checks. Tests are published and executed using .NET 8, matching the desktop application runtime. The dialog and its standalone WARP connection tester were verified on the Mac with the existing account. Fresh-account live verification is pending user-run registration; no fresh registration success is claimed here.

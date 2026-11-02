@@ -1,4 +1,4 @@
-> Personal fork: **WARP** checkbox beside System Proxy. See [setup and verification](PERSONAL-WARP.md). Based on v2rayN 7.17.3; private credentials are not included.
+> Personal fork: **WARP** checkbox beside System Proxy and a **Create WARP** configuration dialog. See [setup and verification](PERSONAL-WARP.md). Based on v2rayN 7.17.3; private credentials are not included.
 
 # v2rayN
 

@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
+        x:Class="v2rayN.Desktop.Views.WarpProfileWindow"
+        x:DataType="vms:WarpProfileViewModel"
+        Title="Create WARP configuration" Width="600" Height="460"
+        MinWidth="560" MinHeight="420" WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="24" Spacing="14">
+        <TextBlock Text="Create WARP configuration" FontSize="22" FontWeight="SemiBold" />
+        <TextBlock Text="Creates a new Cloudflare WARP device for HTTP/2. Public registration keys go to Cloudflare; the private key stays on this device." TextWrapping="Wrap" />
+        <CheckBox x:Name="chkUseProxy" Content="Use current proxy to register" />
+        <StackPanel Spacing="4">
+            <CheckBox x:Name="chkAcceptTerms" Content="I agree to Cloudflare's WARP terms" />
+            <Button x:Name="btnTerms" Content="Read Cloudflare terms" HorizontalAlignment="Left" />
+        </StackPanel>
+        <Border BorderThickness="1" BorderBrush="Gray" CornerRadius="6" Padding="12" MinHeight="80">
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+        </Border>
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="4" />
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button x:Name="btnCreate" Content="Create" />
+            <Button x:Name="btnTest" Content="Test" />
+            <Button x:Name="btnUse" Content="Use this config" />
+            <Button x:Name="btnClose" Content="Close" />
+        </StackPanel>
+        <TextBlock Text="The active profile is replaced only after a successful test and your choice of Use this config." TextWrapping="Wrap" FontSize="12" />
+    </StackPanel>
+</Window>

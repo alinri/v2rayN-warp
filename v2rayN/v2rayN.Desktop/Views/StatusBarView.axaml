@@ -70,6 +70,10 @@
                     AutomationProperties.Name="Connect through WARP"
                     ToolTip.Tip="Client → WARP → selected server" />
 
+                <Button x:Name="btnCreateWarp" Content="Create WARP"
+                    VerticalAlignment="Center" Margin="{StaticResource MarginLr8}"
+                    ToolTip.Tip="Create and test a new WARP configuration" />
+
                 <ComboBox
                     x:Name="cmbRoutings2"
                     Width="160"

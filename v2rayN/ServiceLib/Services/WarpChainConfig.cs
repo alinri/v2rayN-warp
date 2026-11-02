@@ -66,6 +66,6 @@ public static class WarpChainConfig
         warpSockopt.Remove("dialerProxy");
         if (!string.IsNullOrWhiteSpace(physicalInterface)) warpSockopt["interface"] = physicalInterface;
         outbounds.Add(warp);
-        return config.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        return config.ToJsonString(new JsonSerializerOptions(JsonSerializerOptions.Default) { WriteIndented = true });
     }
 }

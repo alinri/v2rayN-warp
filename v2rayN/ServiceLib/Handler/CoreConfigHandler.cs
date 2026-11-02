@@ -41,9 +41,8 @@ public static class CoreConfigHandler
         }
         if (fileName.IsNotEmpty() && result.Data != null)
         {
-            await File.WriteAllTextAsync(fileName, result.Data.ToString());
-            if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
-                File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName!, result.Data.ToString()!, backupExisting: false);
+            else await File.WriteAllTextAsync(fileName, result.Data.ToString());
         }
 
         return result;
@@ -130,9 +129,8 @@ public static class CoreConfigHandler
         {
             return result;
         }
-        await File.WriteAllTextAsync(fileName, result.Data.ToString());
-        if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
-            File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
+        else await File.WriteAllTextAsync(fileName, result.Data.ToString());
         return result;
     }
 
@@ -157,9 +155,8 @@ public static class CoreConfigHandler
             return result;
         }
 
-        await File.WriteAllTextAsync(fileName, result.Data.ToString());
-        if (config.WarpChainItem.Enabled && !OperatingSystem.IsWindows())
-            File.SetUnixFileMode(fileName, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
+        else await File.WriteAllTextAsync(fileName, result.Data.ToString());
         return result;
     }
 }

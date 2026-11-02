@@ -8,11 +8,11 @@ public static class WarpChainService
     {
         var path = ProfilePath(config);
         if (!File.Exists(path))
-            throw new InvalidOperationException("WARP profile is missing. Import warp-entry.private.json into this app's guiConfigs folder.");
+            throw new InvalidOperationException("WARP profile is missing. Click Create WARP first.");
         return File.ReadAllText(path);
     }
 
-    public static string Apply(Config config, string json)
+    public static string PhysicalInterface()
     {
         var physical = NetworkInterface.GetAllNetworkInterfaces()
             .Where(x => x.OperationalStatus == OperationalStatus.Up
@@ -23,6 +23,8 @@ public static class WarpChainService
             .OrderBy(x => x.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
         if (physical == null)
             throw new InvalidOperationException("WARP needs an active Ethernet or Wi-Fi connection.");
-        return WarpChainConfig.Apply(json, ReadProfile(config), physical);
+        return physical;
     }
+
+    public static string Apply(Config config, string json) => WarpChainConfig.Apply(json, ReadProfile(config), PhysicalInterface());
 }

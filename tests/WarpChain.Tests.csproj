@@ -1,11 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../v2rayN/ServiceLib/Services/WarpChainConfig.cs" Link="WarpChainConfig.cs" />
+    <Compile Include="../v2rayN/ServiceLib/Services/WarpRegistrationClient.cs" Link="WarpRegistrationClient.cs" />
+    <Compile Include="../v2rayN/ServiceLib/Services/PrivateWarpProfileStore.cs" Link="PrivateWarpProfileStore.cs" />
   </ItemGroup>
 </Project>

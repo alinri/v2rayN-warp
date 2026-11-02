@@ -26,11 +26,11 @@ shutil.copy2(Path(__file__).parent / 'LICENSE', resources / 'LICENSE-v2rayN.txt'
 info = dict(CFBundleDevelopmentRegion='English', CFBundleDisplayName='v2rayN WARP',
             CFBundleExecutable='v2rayN', CFBundleIconFile='AppIcon',
             CFBundleIdentifier='shop.mislog.v2rayn-warp', CFBundleName='v2rayN WARP',
-            CFBundlePackageType='APPL', CFBundleShortVersionString='7.17.3', CFBundleVersion='7.17.3.1',
+            CFBundlePackageType='APPL', CFBundleShortVersionString='7.17.3', CFBundleVersion='7.17.3.2',
             NSHighResolutionCapable=True, LSMinimumSystemVersion='12.7')
 with (contents / 'Info.plist').open('wb') as f:
     plistlib.dump(info, f)
-# Keep vendor core signatures; sign only our enclosing personal application.
-subprocess.run(['codesign', '--force', '--sign', '-', str(args.output)], check=True)
+# Ad-hoc sign the enclosing app and nested components in the upstream bundle layout.
+subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(args.output)], check=True)
 subprocess.run(['codesign', '--verify', '--deep', '--strict', str(args.output)], check=True)
 print(args.output.resolve())

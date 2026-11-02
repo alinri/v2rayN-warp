@@ -18,6 +18,15 @@ public partial class StatusBarView : ReactiveUserControl<StatusBarViewModel>
 
         txtRunningServerDisplay.Tapped += TxtRunningServerDisplay_Tapped;
         txtRunningInfoDisplay.Tapped += TxtRunningServerDisplay_Tapped;
+        btnCreateWarp.Click += async (_, _) =>
+        {
+            if (TopLevel.GetTopLevel(this) is Window owner)
+            {
+                btnCreateWarp.IsEnabled = false;
+                try { await new WarpProfileWindow().ShowDialog(owner); }
+                finally { btnCreateWarp.IsEnabled = true; }
+            }
+        };
 
         this.WhenActivated(disposables =>
         {
