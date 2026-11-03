@@ -41,6 +41,12 @@ class ReleaseTests(unittest.TestCase):
                 release.main()
             gh.assert_not_called()
 
+    def test_rerunning_a_build_cannot_replace_published_assets(self):
+        with patch.object(release, 'gh', return_value='{"isDraft":false}') as gh:
+            with self.assertRaises(AssertionError):
+                self.run_operation('upload')
+            self.assertEqual(gh.call_count, 1)
+
 
 if __name__ == '__main__':
     unittest.main()

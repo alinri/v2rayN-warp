@@ -36,3 +36,10 @@ release tag and commit are recorded in `BUILD-INFO.json`.
 When upgrading upstream, review the pinned core bundle commit and Xray version
 in `package_release.py` along with its four official SHA-256 values. Keep the
 personal workflow and upstream-only guards when resolving workflow conflicts.
+
+Validation: all four native-runner CI jobs (including cross-compilation for the
+other CPU architecture) passed in the [initial build-only run](https://github.com/alinri/v2rayN-warp/actions/runs/41586418633)
+on 3 November 2026. Its Actions Artifacts count was zero. Local macOS ZIP
+packaging, bundled-core presence, SHA-256 and private-data exclusion were also
+checked. Release state transitions and refusal to overwrite published assets
+have unit coverage; publishing itself is triggered by a tag push.

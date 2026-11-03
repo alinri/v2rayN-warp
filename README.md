@@ -1,5 +1,7 @@
 > Personal fork: **WARP** checkbox beside System Proxy and a **Create WARP** configuration dialog. See [setup and verification](PERSONAL-WARP.md). Based on v2rayN 7.17.3; private credentials are not included.
 
+Personal macOS/Windows builds are released on tag pushes, directly to GitHub Releases without Actions Artifacts. See [release instructions](ci/README.md).
+
 # v2rayN
 
 A GUI client for Windows, Linux and macOS, support [Xray](https://github.com/XTLS/Xray-core)

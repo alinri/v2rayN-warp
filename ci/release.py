@@ -30,6 +30,8 @@ def main():
             gh('release', 'create', tag, *base, '--verify-tag', '--draft',
                '--title', 'v2rayN WARP ' + tag, '--generate-notes')
     elif command == 'upload':
+        info = json.loads(gh('release', 'view', tag, *base, '--json', 'isDraft', capture=True))
+        assert info['isDraft'], 'Refusing to upload into an already published release'
         files = sorted(Path('dist/release').glob('*'))
         assert len(files) == 2 and {p.name for p in files}.issubset(EXPECTED)
         gh('release', 'upload', tag, *base, '--clobber', *(str(p) for p in files))
