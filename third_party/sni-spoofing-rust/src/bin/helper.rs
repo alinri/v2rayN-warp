@@ -172,10 +172,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             _ => Err("unknown operation".into()),
         })();
-        let response = match result {
+        let mut response = match result {
             Ok(v) => v,
             Err(e) => json!({"ok":false,"error":e}),
         };
+        if let Some(request_id) = req.get("requestId") {
+            response["requestId"] = request_id.clone();
+        }
         writeln!(stream, "{response}")?;
         stream.flush()?;
         if cmd == "shutdown" {

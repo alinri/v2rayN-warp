@@ -505,9 +505,9 @@ public class StatusBarViewModel : MyReactiveObject
                 return;
             }
         }
+        _config.WarpChainItem.Enabled = EnableWarp;
         if (EnableWarp)
         { _config.SniSpoofItem.Enabled = false; EnableSni = false; await SniSpoofService.Stop(); }
-        _config.WarpChainItem.Enabled = EnableWarp;
         await ConfigHandler.SaveConfig(_config);
         NoticeManager.Instance.SendMessageEx(EnableWarp ? "Client → WARP → selected server" : "WARP off: connecting to the selected server directly");
         AppEvents.ReloadRequested.Publish();

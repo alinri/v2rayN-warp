@@ -15,6 +15,7 @@ class HelperControlTests(unittest.TestCase):
      self.assertEqual(json.loads(channel.readline())['token'],'fixture-token')
      for request in [{'cmd':'unknown'},{'cmd':'start','id':'test','listen':'0.0.0.0:40443','connect':'104.21.56.43:443'},{'cmd':'start','id':'test','listen':'127.0.0.1:40443','connect':'91.107.177.38:443'}]:
       channel.write(json.dumps(request)+'\n');channel.flush();self.assertFalse(json.loads(channel.readline())['ok'])
+     channel.write('{"cmd":"diagnostics","requestId":42}\n');channel.flush();diagnostics=json.loads(channel.readline());self.assertEqual(diagnostics['requestId'],42);self.assertIsInstance(diagnostics['lines'],list)
      channel.write('{"cmd":"shutdown"}\n');channel.flush();self.assertTrue(json.loads(channel.readline())['ok'])
     self.assertEqual(proc.wait(timeout=5),0)
    finally:

@@ -43,7 +43,7 @@ public static class CoreConfigHandler
             }
             catch (Exception ex)
             {
-                if (!SniSpoofService.HasActiveSession)
+                if (!SniSpoofService.HasActiveSession && config.SniSpoofItem.Enabled)
                 { config.SniSpoofItem.Enabled = false; config.WarpChainItem.Enabled = SniSpoofService.PreviousWarp; await ConfigHandler.SaveConfig(config); }
                 SniSpoofService.NotifyFailure(ex.Message);
                 return new RetResult(false, "SNI: " + ex.Message);

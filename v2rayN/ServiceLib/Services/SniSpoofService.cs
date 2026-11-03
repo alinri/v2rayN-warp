@@ -35,6 +35,7 @@ public static class SniSpoofService
     private static TcpClient? control;
     private static StreamReader? reader;
     private static StreamWriter? writer;
+    private static long commandSequence;
     private static Process? launcher;
     private static Task<string>? launcherError;
     private static string? sessionDir;
@@ -78,10 +79,19 @@ public static class SniSpoofService
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(8));
         ct = timeout.Token;
-        await writer!.WriteLineAsync(JsonSerializer.Serialize(command));
+        var requestId = Interlocked.Increment(ref commandSequence);
+        var payload = JsonSerializer.SerializeToNode(command)!.AsObject();
+        payload["requestId"] = requestId;
+        await writer!.WriteLineAsync(payload.ToJsonString());
         await writer.FlushAsync(ct);
-        var line = await reader!.ReadLineAsync(ct);
-        var result = JsonNode.Parse(line ?? throw new IOException("SNI helper stopped"))!;
+        JsonNode result;
+        do
+        {
+            var line = await reader!.ReadLineAsync(ct);
+            result = JsonNode.Parse(line ?? throw new IOException("SNI helper stopped"))!;
+            // Cancellation may leave the previous response queued; never consume
+            // it as the result of a later start/stop/diagnostics operation.
+        } while (result["requestId"]?.GetValue<long>() != requestId);
         if (result["ok"]?.GetValue<bool>() != true)
             throw new InvalidOperationException(result["error"]?.ToString() ?? "SNI helper failed");
         return result;
