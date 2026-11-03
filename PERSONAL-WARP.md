@@ -49,7 +49,7 @@ Before producing a Plus draft, the app reads the linked account and requires `wa
 
 The saved outbound tag records that a Plus proof is required, so reopening and testing a Plus draft still checks for Plus. The runtime chain uses the normal WARP tag and the same checkbox. This is a creation and connectivity check, not ongoing subscription monitoring or a speed guarantee.
 
-WARP+ license attachment and rejection, independent account verification, the saved Plus requirement, strict trace checking, credential isolation and cleanup are covered by .NET 8 tests. Live activation with the user's paid key is pending user entry in the application.
+WARP+ license attachment and rejection, independent account verification, the saved Plus requirement, strict trace checking, credential isolation and cleanup are covered by .NET 8 tests. During a live attempt on 3 November 2026, the user entered their license in the application. Registration reached the saved Plus draft, which requires the account API to have returned `warp_plus=true`, but the independent tunnel test returned `warp=on`. A repeat test and checks against both H2 edges (162.159.198.2 and 162.159.199.2), multiple trace hosts and IPv4/IPv6 trace destinations returned the same ordinary WARP status. H3 checks against 162.159.198.1 and 162.159.199.1 did not complete HTTPS successfully. The draft was retained for diagnostics and the active profile was preserved. Paid Plus connectivity has therefore **not** been verified; account entitlement and actual tunnel status must not be treated as equivalent. The user's subscription status in the official application is the next diagnostic check. No further device was registered during these checks.
 
 ## Build and checks
 
