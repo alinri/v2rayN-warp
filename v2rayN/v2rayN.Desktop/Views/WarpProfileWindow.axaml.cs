@@ -13,6 +13,7 @@ public partial class WarpProfileWindow : ReactiveWindow<WarpProfileViewModel>
         {
             this.Bind(ViewModel, vm => vm.TermsAccepted, view => view.chkAcceptTerms.IsChecked).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.UseCurrentProxy, view => view.chkUseProxy.IsChecked).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.LicenseKey, view => view.txtWarpLicense.Text).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.CreateCmd, view => view.btnCreate).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.TestCmd, view => view.btnTest).DisposeWith(disposables);
             this.BindCommand(ViewModel, vm => vm.UseCmd, view => view.btnUse).DisposeWith(disposables);

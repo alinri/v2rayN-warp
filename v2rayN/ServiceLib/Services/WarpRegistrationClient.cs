@@ -26,9 +26,13 @@ public sealed class WarpRegistrationClient(HttpClient client)
     }
 
     public async Task<string> RegisterAsync(string bootstrapPublicKey, bool acceptedTerms,
-        IProgress<string>? progress, CancellationToken cancellationToken)
+        IProgress<string>? progress, CancellationToken cancellationToken, string? licenseKey = null)
     {
         if (!acceptedTerms) throw new InvalidOperationException("Accept Cloudflare's WARP terms before creating a registration.");
+        licenseKey = licenseKey?.Trim();
+        var plus = !string.IsNullOrEmpty(licenseKey);
+        if (plus && (licenseKey!.Length > 256 || licenseKey.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '-')))
+            throw new InvalidOperationException("Enter the WARP+ license key from your Cloudflare account, without spaces.");
         if (Convert.FromBase64String(bootstrapPublicKey).Length != 32)
             throw new InvalidOperationException("The bootstrap key is invalid.");
         using var deviceKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -74,11 +78,24 @@ public sealed class WarpRegistrationClient(HttpClient client)
                 addresses.Add(address + (address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork ? "/32" : "/128"));
             }
             if (addresses.Count == 0) throw new InvalidOperationException("Cloudflare did not assign a tunnel address.");
+            if (plus)
+            {
+                progress?.Report("Connecting this new device to your WARP+ subscription…");
+                var linked = await RequestAsync(HttpMethod.Put, "reg/" + id + "/account", token,
+                    new JsonObject { ["license"] = licenseKey }, cancellationToken);
+                if (linked["success"]?.GetValue<bool>() == false)
+                    throw new InvalidOperationException("Cloudflare did not accept the WARP+ license. Your active profile was not changed.");
+                // Successful PUT responses do not necessarily contain a success field.
+                // Read the account independently; a paid key must never silently yield a free profile.
+                var account = await RequestAsync(HttpMethod.Get, "reg/" + id + "/account", token, null, cancellationToken);
+                if (account["warp_plus"]?.GetValue<bool>() != true)
+                    throw new InvalidOperationException("Cloudflare has not enabled WARP+ for this device. Check your subscription and available device slots. Your active profile was not changed.");
+            }
             // The enrollment response may list a QUIC endpoint. H2 has its own TCP edge.
             const string endpointH2 = "162.159.198.2";
             return new JsonObject
             {
-                ["tag"] = WarpChainConfig.Tag, ["protocol"] = "masque",
+                ["tag"] = plus ? WarpProfilePolicy.PlusTag : WarpChainConfig.Tag, ["protocol"] = "masque",
                 ["settings"] = new JsonObject { ["address"] = endpointH2, ["port"] = 443 },
                 ["streamSettings"] = new JsonObject
                 {
@@ -118,6 +135,8 @@ public sealed class WarpRegistrationClient(HttpClient client)
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException(response.StatusCode == HttpStatusCode.TooManyRequests
                 ? "Cloudflare rate-limited registration. Wait before trying again."
+                : path.EndsWith("/account", StringComparison.Ordinal)
+                ? $"Cloudflare rejected the WARP+ request (HTTP {(int)response.StatusCode}). Check the license and available device slots. Your active profile was not changed."
                 : $"Cloudflare rejected WARP registration (HTTP {(int)response.StatusCode}). Try registering through a working proxy.");
         if (method == HttpMethod.Delete) return new JsonObject();
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);

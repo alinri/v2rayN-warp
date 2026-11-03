@@ -8,9 +8,11 @@ internal static class WarpRegistrationTests
 {
     private sealed class Handler : HttpMessageHandler
     {
-        public int Posts, Patches, Deletes;
+        public int Posts, Patches, Deletes, Puts, Gets;
         public bool InvalidPeer;
         public bool Blocked;
+        public bool LicenseRejected, InactivePlus, ExplicitLicenseFailure;
+        public const string License = "AAAAAAAA-BBBBBBBB-CCCCCCCC";
         public string? DevicePublicKey;
         public string? EdgePublicKey;
         public string DeviceId = Guid.NewGuid().ToString();
@@ -29,8 +31,28 @@ internal static class WarpRegistrationTests
                 Assert(!body.ToJsonString().Contains("privateKey"), "Do not transmit private keys");
                 return Json(new JsonObject { ["id"] = DeviceId, ["token"] = "fake-test-token" });
             }
-            Assert(request.RequestUri.AbsolutePath.EndsWith("/" + DeviceId), "Operate only on the newly created device");
             Assert(request.Headers.Authorization?.Parameter == "fake-test-token", "Enrollment uses the returned token");
+            if (request.RequestUri.AbsolutePath.EndsWith("/" + DeviceId + "/account"))
+            {
+                if (request.Method == HttpMethod.Put)
+                {
+                    Puts++;
+                    var body = JsonNode.Parse(await request.Content!.ReadAsStringAsync(token))!;
+                    Assert(body.AsObject().Count == 1 && body["license"]!.GetValue<string>() == License,
+                        "Send only the license to the newly created device account");
+                    Assert(Patches > 0, "Enroll the new device key before attaching the subscription");
+                    if (LicenseRejected) return new HttpResponseMessage(HttpStatusCode.BadRequest)
+                        { Content = new StringContent("secret-license-response-" + License) };
+                    if (ExplicitLicenseFailure) return Json(new JsonObject { ["success"] = false });
+                    // The real API can omit success and return account fields directly.
+                    return Json(new JsonObject { ["id"] = "fake-account", ["warp_plus"] = true });
+                }
+                Assert(request.Method == HttpMethod.Get, "Never remove a subscription or alter other devices");
+                Gets++;
+                Assert(Puts == 1, "Read back the account after linking the license");
+                return Json(new JsonObject { ["id"] = "fake-account", ["warp_plus"] = !InactivePlus, ["license"] = License });
+            }
+            Assert(request.RequestUri.AbsolutePath.EndsWith("/" + DeviceId), "Operate only on the newly created device");
             if (request.Method == HttpMethod.Delete) { Deletes++; return new HttpResponseMessage(HttpStatusCode.NoContent); }
             Patches++;
             var enroll = JsonNode.Parse(await request.Content!.ReadAsStringAsync(token))!;
@@ -85,6 +107,7 @@ internal static class WarpRegistrationTests
         Assert(warp["address"]![0]!.GetValue<string>() == "172.16.0.2/32", "Normalize tunnel prefixes");
         Assert(handler.Posts == 1 && handler.Patches == 1 && handler.Deletes == 0, "Register once and enroll once");
         Assert(!json.Contains("fake-test-token"), "Do not persist the registration API token");
+        Assert(handler.Puts == 0 && handler.Gets == 0, "Free registration does not access subscription endpoints");
         handler.InvalidPeer = true;
         try { await registrar.RegisterAsync(bootstrap, true, null, default); throw new Exception("Invalid peer must fail"); }
         catch (FormatException) { }
@@ -94,6 +117,53 @@ internal static class WarpRegistrationTests
         try { await registrar.RegisterAsync(bootstrap, true, null, default); throw new Exception("HTTP error must fail"); }
         catch (InvalidOperationException ex) { Assert(!ex.Message.Contains("private-body"), "Do not display API response bodies"); }
         Assert(handler.Posts == requests + 1, "Never retry account creation silently");
+
+        using var plusHandler = new Handler();
+        using var plusHttp = new HttpClient(plusHandler);
+        var plusRegistrar = new WarpRegistrationClient(plusHttp);
+        try { await plusRegistrar.RegisterAsync(bootstrap, false, null, default, Handler.License); throw new Exception("Plus also requires terms"); }
+        catch (InvalidOperationException) { }
+        try { await plusRegistrar.RegisterAsync(bootstrap, true, null, default, "key with whitespace"); throw new Exception("Validate license before registering"); }
+        catch (InvalidOperationException) { }
+        Assert(plusHandler.Posts == 0, "No device created for missing consent or malformed license");
+        var plusJson = await plusRegistrar.RegisterAsync(bootstrap, true, null, default, " " + Handler.License + " ");
+        Assert(WarpProfilePolicy.RequiresPlus(plusJson), "Remember Plus requirement in the saved outbound tag");
+        Assert(!WarpProfilePolicy.RequiresPlus(json), "Existing free profiles remain compatible");
+        Assert(plusHandler.Posts == 1 && plusHandler.Patches == 1 && plusHandler.Puts == 1 && plusHandler.Gets == 1 && plusHandler.Deletes == 0,
+            "Register a separate device, bind the paid license once, then confirm its account");
+        Assert(!plusJson.Contains(Handler.License) && !plusJson.Contains("fake-test-token"), "Neither license nor token is saved in the profile");
+        Assert(WarpProfilePolicy.ValidateTrace(plusJson, "ip=192.0.2.1\r\nwarp=plus\r\n") == "WARP+", "Require live Plus confirmation");
+        Assert(WarpProfilePolicy.ValidateTrace(json, "warp=on\n") == "WARP", "Free WARP still works");
+        Assert(WarpProfilePolicy.ValidateTrace(json, "warp=plus\n") == "WARP+", "Display actual Plus mode for unmarked imports");
+        foreach (var trace in new[] { "warp=on\n", "warp=off\n", "other=warp=plus\n", "warp=plus-extra\n" })
+        {
+            try { WarpProfilePolicy.ValidateTrace(plusJson, trace); throw new Exception("Never downgrade a Plus request"); }
+            catch (InvalidOperationException) { }
+        }
+        const string proxyConfig = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443}]}}]}""";
+        var chainedPlus = JsonNode.Parse(WarpChainConfig.Apply(proxyConfig, plusJson, "en0"))!;
+        Assert(chainedPlus["outbounds"]![1]!["tag"]!.GetValue<string>() == WarpChainConfig.Tag,
+            "Plus profile uses the normal runtime chain tag");
+        Assert(chainedPlus["outbounds"]![0]!["streamSettings"]!["sockopt"]!["dialerProxy"]!.GetValue<string>() == WarpChainConfig.Tag,
+            "Plus stays before the selected proxy");
+
+        foreach (var failure in new[] { "http", "inactive", "explicit" })
+        {
+            using var failedHandler = new Handler
+                { LicenseRejected = failure == "http", InactivePlus = failure == "inactive", ExplicitLicenseFailure = failure == "explicit" };
+            using var failedHttp = new HttpClient(failedHandler);
+            try
+            {
+                await new WarpRegistrationClient(failedHttp).RegisterAsync(bootstrap, true, null, default, Handler.License);
+                throw new Exception("Unconfirmed WARP+ must not produce a profile");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Assert(!ex.Message.Contains(Handler.License) && !ex.Message.Contains("secret-license-response"), "Hide license and response bodies on failure");
+            }
+            Assert(failedHandler.Posts == 1 && failedHandler.Puts == 1 && failedHandler.Deletes == 1,
+                "Do not retry license attachment; cleanup removes only the new device");
+        }
 
         var directory = Path.Combine(Path.GetTempPath(), "warp-store-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -114,6 +184,6 @@ internal static class WarpRegistrationTests
             }
         }
         finally { Directory.Delete(directory, true); }
-        Console.WriteLine("PASS: consent, MASQUE enrollment, private-key isolation, HTTP errors, cleanup, atomic storage and private backups");
+        Console.WriteLine("PASS: consent, MASQUE enrollment, WARP+ account linking and independent proof, credential isolation, cleanup and private backups");
     }
 }

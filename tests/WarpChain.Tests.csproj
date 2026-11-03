@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="../v2rayN/ServiceLib/Services/WarpChainConfig.cs" Link="WarpChainConfig.cs" />
     <Compile Include="../v2rayN/ServiceLib/Services/WarpRegistrationClient.cs" Link="WarpRegistrationClient.cs" />
+    <Compile Include="../v2rayN/ServiceLib/Services/WarpProfilePolicy.cs" Link="WarpProfilePolicy.cs" />
     <Compile Include="../v2rayN/ServiceLib/Services/PrivateWarpProfileStore.cs" Link="PrivateWarpProfileStore.cs" />
   </ItemGroup>
 </Project>

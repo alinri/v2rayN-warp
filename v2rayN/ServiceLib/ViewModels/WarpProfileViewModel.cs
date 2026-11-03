@@ -4,6 +4,7 @@ public class WarpProfileViewModel : ReactiveObject
 {
     [Reactive] public bool TermsAccepted { get; set; }
     [Reactive] public bool UseCurrentProxy { get; set; } = true;
+    [Reactive] public string LicenseKey { get; set; } = "";
     [Reactive] public bool IsBusy { get; set; }
     [Reactive] public bool HasCandidate { get; set; }
     [Reactive] public bool TestPassed { get; set; }
@@ -51,11 +52,16 @@ public class WarpProfileViewModel : ReactiveObject
         if (!TermsAccepted || IsBusy) return;
         IsBusy = true;
         TestPassed = false;
+        HasCandidate = false;
+        _candidate = null;
         _cancellation = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        var license = LicenseKey.Trim();
+        LicenseKey = "";
         try
         {
             var progress = new Progress<string>(message => Status = message);
-            _candidate = await WarpProfileCreationService.CreateAsync(TermsAccepted, UseCurrentProxy, progress, _cancellation.Token);
+            var candidate = await WarpProfileCreationService.CreateAsync(TermsAccepted, UseCurrentProxy, progress, _cancellation.Token, license);
+            _candidate = candidate;
             PrivateWarpProfileStore.Save(Utils.GetConfigPath("warp-draft.private.json"), _candidate);
             HasCandidate = true;
             await TestCandidateAsync(_cancellation.Token);
@@ -80,9 +86,9 @@ public class WarpProfileViewModel : ReactiveObject
     private async Task TestCandidateAsync(CancellationToken cancellationToken)
     {
         Status = "Testing the new WARP connection directly over Ethernet/Wi-Fi…";
-        await WarpProfileCreationService.TestAsync(_candidate!, cancellationToken);
+        var mode = await WarpProfileCreationService.TestAsync(_candidate!, cancellationToken);
         TestPassed = true;
-        Status = "WARP test passed. Choose Use this config to activate this profile; the previous one will be backed up.";
+        Status = mode + " test passed. Choose Use this config to activate this profile; the previous one will be backed up.";
     }
 
     private Task UseAsync()
@@ -102,7 +108,11 @@ public class WarpProfileViewModel : ReactiveObject
         return Task.CompletedTask;
     }
 
-    public void Cancel() => _cancellation?.Cancel();
+    public void Cancel()
+    {
+        LicenseKey = "";
+        _cancellation?.Cancel();
+    }
 
     private static string FriendlyError(Exception exception) => exception is InvalidOperationException
         ? exception.Message

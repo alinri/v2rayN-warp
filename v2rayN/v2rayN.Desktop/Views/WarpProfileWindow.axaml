@@ -3,12 +3,20 @@
         xmlns:vms="clr-namespace:ServiceLib.ViewModels;assembly=ServiceLib"
         x:Class="v2rayN.Desktop.Views.WarpProfileWindow"
         x:DataType="vms:WarpProfileViewModel"
-        Title="Create WARP configuration" Width="600" Height="460"
-        MinWidth="560" MinHeight="420" WindowStartupLocation="CenterOwner">
+        Title="Create WARP configuration" Width="620" Height="580"
+        MinWidth="600" MinHeight="560" WindowStartupLocation="CenterOwner">
     <StackPanel Margin="24" Spacing="14">
         <TextBlock Text="Create WARP configuration" FontSize="22" FontWeight="SemiBold" />
         <TextBlock Text="Creates a new Cloudflare WARP device for HTTP/2. Public registration keys go to Cloudflare; the private key stays on this device." TextWrapping="Wrap" />
         <CheckBox x:Name="chkUseProxy" Content="Use current proxy to register" />
+        <StackPanel Spacing="4">
+            <TextBlock Text="WARP+ license key (optional)" />
+            <TextBox x:Name="txtWarpLicense" PasswordChar="●" MaxLength="256"
+                     Watermark="Enter your WARP+ key; leave blank for free WARP"
+                     IsEnabled="{Binding !IsBusy}" />
+            <TextBlock Text="The key is sent only to Cloudflare to link this new device. It is cleared on Create and is not saved or logged. A WARP+ key requires a paid subscription and an available device slot."
+                       TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
         <StackPanel Spacing="4">
             <CheckBox x:Name="chkAcceptTerms" Content="I agree to Cloudflare's WARP terms" />
             <Button x:Name="btnTerms" Content="Read Cloudflare terms" HorizontalAlignment="Left" />

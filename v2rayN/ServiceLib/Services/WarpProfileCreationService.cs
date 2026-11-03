@@ -5,7 +5,7 @@ namespace ServiceLib.Services;
 public static class WarpProfileCreationService
 {
     public static async Task<string> CreateAsync(bool acceptedTerms, bool useProxy,
-        IProgress<string> progress, CancellationToken cancellationToken)
+        IProgress<string> progress, CancellationToken cancellationToken, string? licenseKey = null)
     {
         if (!acceptedTerms) throw new InvalidOperationException("Accept Cloudflare's WARP terms first.");
         var core = CoreInfoManager.Instance.GetCoreExecFile(CoreInfoManager.Instance.GetCoreInfo(ECoreType.Xray), out _);
@@ -36,10 +36,10 @@ public static class WarpProfileCreationService
             ConnectTimeout = TimeSpan.FromSeconds(15), MaxResponseHeadersLength = 32 };
         if (useProxy) handler.Proxy = new WebProxy("http://127.0.0.1:" + AppManager.Instance.GetLocalPort(EInboundProtocol.socks));
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(40) };
-        return await new WarpRegistrationClient(client).RegisterAsync(publicKey, acceptedTerms, progress, cancellationToken);
+        return await new WarpRegistrationClient(client).RegisterAsync(publicKey, acceptedTerms, progress, cancellationToken, licenseKey);
     }
 
-    public static async Task TestAsync(string profile, CancellationToken cancellationToken)
+    public static async Task<string> TestAsync(string profile, CancellationToken cancellationToken)
     {
         var outbound = JsonNode.Parse(profile)!.AsObject();
         var physical = WarpChainService.PhysicalInterface();
@@ -91,8 +91,7 @@ public static class WarpProfileCreationService
             using var response = await client.GetAsync("https://www.cloudflare.com/cdn-cgi/trace", timeout.Token);
             if (!response.IsSuccessStatusCode) throw new InvalidOperationException("The WARP connectivity test failed.");
             var trace = await response.Content.ReadAsStringAsync(timeout.Token);
-            if (!Regex.IsMatch(trace, @"(?m)^warp=(on|plus)\r?$"))
-                throw new InvalidOperationException("The test did not return a WARP connection. The current profile was not changed.");
+            return WarpProfilePolicy.ValidateTrace(profile, trace);
         }
         finally
         {

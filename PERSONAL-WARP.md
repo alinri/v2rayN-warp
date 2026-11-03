@@ -39,6 +39,18 @@ The registration API is not a stable public Cloudflare developer API and can cha
 
 The creation dialog is implemented for the Avalonia desktop build used on this Mac. The Windows WPF checkbox remains wired; a Windows creation dialog has not been added or tested here.
 
+## Create a WARP+ configuration
+
+The desktop dialog also accepts an existing paid WARP+ subscription key. Open **Create WARP**, paste your key into the masked **WARP+ license key** field, accept Cloudflare's terms and click **Create**. Leave the key blank to create free WARP instead. You need an available device slot on your subscription; the app does not remove any of your other devices. See [Cloudflare's license instructions](https://developers.cloudflare.com/warp-client/get-started/linux/) and [WARP+ subscription information](https://developers.cloudflare.com/warp-client/warp-modes/).
+
+The key is sent over HTTPS only to Cloudflare's registration API to link the separate newly created device. It is cleared from the input on Create and is not saved in configuration, backups or logs. The app does not retain the registration API token. You must enter the key again when creating another Plus device.
+
+Before producing a Plus draft, the app reads the linked account and requires `warp_plus=true`. Its independent connection test then requires **`warp=plus`**, using only the new WARP outbound on the physical interface; it cannot mistake the selected server's WARP exit for the new first hop. A free `warp=on` result cannot pass a Plus test. Only after the **WARP+ test passed** status appears can **Use this config** replace the active profile, keeping a private backup. A rejected license or unconfirmed Plus account removes only the device created by that registration attempt; the active profile and other subscription devices are preserved. A successfully registered draft that fails the network test remains available for **Test** without registering another device.
+
+The saved outbound tag records that a Plus proof is required, so reopening and testing a Plus draft still checks for Plus. The runtime chain uses the normal WARP tag and the same checkbox. This is a creation and connectivity check, not ongoing subscription monitoring or a speed guarantee.
+
+WARP+ license attachment and rejection, independent account verification, the saved Plus requirement, strict trace checking, credential isolation and cleanup are covered by .NET 8 tests. Live activation with the user's paid key is pending user entry in the application.
+
 ## Build and checks
 
 ```sh
@@ -59,6 +71,8 @@ Verified on the original Mac on 3 November 2026: enabling the actual checkbox pr
 برنامهٔ **v2rayN WARP** را باز کن، پروفایل واقعی سرور را انتخاب کن و کنار تنظیم پروکسی تیک **WARP** را بزن. تیک روشن: دستگاه ← WARP ← سرور. تیک خاموش: اتصال عادی به همان سرور. تنظیمات برنامهٔ قبلی جدا می‌ماند. گزینهٔ localhost مربوط به واسط قدیمی را برای این تیک انتخاب نکن.
 
 برای ساخت کانفیگ تازه، کنار تیک WARP روی **Create WARP** بزن؛ شرایط Cloudflare را خودت بپذیر و **Create** را بزن. برنامه کانفیگ تازه را می‌سازد و تست می‌کند. پس از موفقیت **Use this config** را بزن؛ کانفیگ قبلی پشتیبان می‌شود. گزینهٔ **Use current proxy to register** برای ثبت از مسیر پروکسی فعال همین برنامه است.
+
+برای **WARP+**، کلید اشتراک خودت را در کادر **WARP+ license key** وارد کن و سپس Create را بزن. کلید را در چت نفرست. پس از پیام **WARP+ test passed**، گزینهٔ **Use this config** را بزن. کلید در فایل‌ها ذخیره نمی‌شود و کانفیگ معمولی نمی‌تواند به‌جای Plus تأیید شود.
 
 Generator verification: the registration flow is covered by mocked Cloudflare HTTP responses, current and legacy Xray `wg` output, enrollment key matching, response-error cleanup, and owner-only atomic storage/backup checks. Tests are published and executed using .NET 8, matching the desktop application runtime.
 
