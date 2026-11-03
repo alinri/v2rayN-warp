@@ -127,17 +127,19 @@ internal static class WarpRegistrationTests
         catch (InvalidOperationException) { }
         Assert(plusHandler.Posts == 0, "No device created for missing consent or malformed license");
         var plusJson = await plusRegistrar.RegisterAsync(bootstrap, true, null, default, " " + Handler.License + " ");
-        Assert(WarpProfilePolicy.RequiresPlus(plusJson), "Remember Plus requirement in the saved outbound tag");
-        Assert(!WarpProfilePolicy.RequiresPlus(json), "Existing free profiles remain compatible");
+        Assert(WarpProfilePolicy.RequestsPlus(plusJson), "Remember the licensed profile in its saved outbound tag");
+        Assert(!WarpProfilePolicy.RequestsPlus(json), "Existing free profiles remain compatible");
         Assert(plusHandler.Posts == 1 && plusHandler.Patches == 1 && plusHandler.Puts == 1 && plusHandler.Gets == 1 && plusHandler.Deletes == 0,
             "Register a separate device, bind the paid license once, then confirm its account");
         Assert(!plusJson.Contains(Handler.License) && !plusJson.Contains("fake-test-token"), "Neither license nor token is saved in the profile");
         Assert(WarpProfilePolicy.ValidateTrace(plusJson, "ip=192.0.2.1\r\nwarp=plus\r\n") == "WARP+", "Require live Plus confirmation");
         Assert(WarpProfilePolicy.ValidateTrace(json, "warp=on\n") == "WARP", "Free WARP still works");
         Assert(WarpProfilePolicy.ValidateTrace(json, "warp=plus\n") == "WARP+", "Display actual Plus mode for unmarked imports");
-        foreach (var trace in new[] { "warp=on\n", "warp=off\n", "other=warp=plus\n", "warp=plus-extra\n" })
+        Assert(WarpProfilePolicy.ValidateTrace(plusJson, "warp=on\n") == "WARP (license accepted; Plus not confirmed)",
+            "Accept a working licensed WARP connection and label its observed tier honestly");
+        foreach (var trace in new[] { "warp=off\n", "other=warp=plus\n", "warp=plus-extra\n" })
         {
-            try { WarpProfilePolicy.ValidateTrace(plusJson, trace); throw new Exception("Never downgrade a Plus request"); }
+            try { WarpProfilePolicy.ValidateTrace(plusJson, trace); throw new Exception("Reject a non-WARP connection"); }
             catch (InvalidOperationException) { }
         }
         const string proxyConfig = """{"outbounds":[{"tag":"proxy","protocol":"vless","settings":{"vnext":[{"address":"example.com","port":443}]}}]}""";
@@ -147,7 +149,14 @@ internal static class WarpRegistrationTests
         Assert(chainedPlus["outbounds"]![0]!["streamSettings"]!["sockopt"]!["dialerProxy"]!.GetValue<string>() == WarpChainConfig.Tag,
             "Plus stays before the selected proxy");
 
-        foreach (var failure in new[] { "http", "inactive", "explicit" })
+        using (var acceptedHandler = new Handler { InactivePlus = true })
+        using (var acceptedHttp = new HttpClient(acceptedHandler))
+        {
+            var accepted = await new WarpRegistrationClient(acceptedHttp).RegisterAsync(bootstrap, true, null, default, Handler.License);
+            Assert(WarpProfilePolicy.RequestsPlus(accepted) && acceptedHandler.Deletes == 0,
+                "An accepted license is usable even when the account does not advertise Plus");
+        }
+        foreach (var failure in new[] { "http", "explicit" })
         {
             using var failedHandler = new Handler
                 { LicenseRejected = failure == "http", InactivePlus = failure == "inactive", ExplicitLicenseFailure = failure == "explicit" };

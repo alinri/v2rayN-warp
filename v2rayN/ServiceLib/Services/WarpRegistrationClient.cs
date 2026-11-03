@@ -86,10 +86,10 @@ public sealed class WarpRegistrationClient(HttpClient client)
                 if (linked["success"]?.GetValue<bool>() == false)
                     throw new InvalidOperationException("Cloudflare did not accept the WARP+ license. Your active profile was not changed.");
                 // Successful PUT responses do not necessarily contain a success field.
-                // Read the account independently; a paid key must never silently yield a free profile.
+                // Confirm account access after linking. The connection test reports the actual tier.
                 var account = await RequestAsync(HttpMethod.Get, "reg/" + id + "/account", token, null, cancellationToken);
-                if (account["warp_plus"]?.GetValue<bool>() != true)
-                    throw new InvalidOperationException("Cloudflare has not enabled WARP+ for this device. Check your subscription and available device slots. Your active profile was not changed.");
+                if (account["success"]?.GetValue<bool>() == false || string.IsNullOrWhiteSpace(account["id"]?.GetValue<string>()))
+                    throw new InvalidOperationException("Cloudflare did not confirm the linked account. Your active profile was not changed.");
             }
             // The enrollment response may list a QUIC endpoint. H2 has its own TCP edge.
             const string endpointH2 = "162.159.198.2";
