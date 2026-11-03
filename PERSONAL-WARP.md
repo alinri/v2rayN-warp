@@ -51,6 +51,8 @@ The saved outbound tag records a license-linked profile. The runtime chain uses 
 
 Tests cover license acceptance/rejection, account confirmation, using a working licensed WARP connection without a Plus claim, rejecting non-WARP traces, credential isolation and cleanup. On 3 November 2026 the user's license was accepted and the account API returned `warp_plus=true`, while repeated independent H2 checks returned `warp=on`. H3 checks did not complete HTTPS successfully. The user requested using the accepted license regardless of whether Plus is reported. The saved device can be activated under the updated connectivity policy without re-registering; paid Plus routing remains unverified.
 
+The existing licensed draft was subsequently tested and activated in the updated app without another registration or key entry. Its credentials matched the running WARP first hop on en0, the active file remained mode 0600, the previous profile was backed up, and HTTPS through the unchanged selected server (2 Direct IPv6) succeeded with a Germany exit. The app correctly reported that the license was accepted while Plus was not confirmed.
+
 ## Build and checks
 
 ```sh
