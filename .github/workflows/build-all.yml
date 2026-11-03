@@ -9,6 +9,8 @@ on:
 
 jobs:
   update:
+    # Preserve upstream workflows without running them in this personal fork.
+    if: github.repository == '2dust/v2rayN'
     runs-on: ubuntu-latest
     steps:
 

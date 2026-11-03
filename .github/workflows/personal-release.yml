@@ -1,0 +1,87 @@
+name: Personal macOS and Windows release
+
+on:
+  push:
+    tags: ['**']
+  workflow_dispatch: # Branch runs build and validate without publishing.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Create or resume draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/release.py begin
+
+  build:
+    needs: prepare
+    name: Build ${{ matrix.rid }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: macos-15, rid: osx-arm64}
+          - {os: macos-15, rid: osx-x64}
+          - {os: windows-2022, rid: win-x64}
+          - {os: windows-2022, rid: win-arm64}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    permissions:
+      contents: write # Upload directly to the draft Release, never Actions Artifacts.
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v5.0.1
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Run WARP tests on the runner
+        run: |
+          python -m unittest discover -s ci -p 'test_*.py'
+          dotnet run --project tests/WarpChain.Tests.csproj -c Release
+      - name: Publish self-contained desktop and update helper
+        env:
+          BUILD_RID: ${{ matrix.rid }}
+        run: |
+          dotnet publish v2rayN/v2rayN.Desktop/v2rayN.Desktop.csproj -c Release -r "$BUILD_RID" --self-contained true -o dist/ci-publish
+          dotnet publish v2rayN/AmazTool/AmazTool.csproj -c Release -r "$BUILD_RID" --self-contained true -p:PublishTrimmed=true -o dist/ci-publish
+      - name: Package official cores and personal build
+        env:
+          BUILD_RID: ${{ matrix.rid }}
+        run: python ci/package_release.py --rid "$BUILD_RID" --publish-dir dist/ci-publish --output dist/release
+      - name: Upload directly to draft Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python ci/release.py upload
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Verify all assets and publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/release.py finish

@@ -18,6 +18,8 @@ env:
 
 jobs:
   build:
+    # Preserve upstream workflows without running them in this personal fork.
+    if: github.repository == '2dust/v2rayN'
     strategy:
       matrix:
         configuration: [Release]

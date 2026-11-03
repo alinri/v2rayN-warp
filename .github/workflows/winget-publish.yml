@@ -10,6 +10,8 @@ on:
 
 jobs:
   winget:
+    # Preserve upstream workflows without running them in this personal fork.
+    if: github.repository == '2dust/v2rayN'
     name: Publish winget package
     runs-on: windows-latest
     steps:
