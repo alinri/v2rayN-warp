@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../v2rayN/ServiceLib/Services/SniSpoofConfig.cs" Link="SniSpoofConfig.cs" />
     <Compile Include="../v2rayN/ServiceLib/Services/WarpChainConfig.cs" Link="WarpChainConfig.cs" />
     <Compile Include="../v2rayN/ServiceLib/Services/WarpRegistrationClient.cs" Link="WarpRegistrationClient.cs" />
     <Compile Include="../v2rayN/ServiceLib/Services/WarpProfilePolicy.cs" Link="WarpProfilePolicy.cs" />

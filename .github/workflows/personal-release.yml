@@ -33,7 +33,7 @@ jobs:
       matrix:
         include:
           - {os: macos-15, rid: osx-arm64}
-          - {os: macos-15, rid: osx-x64}
+          - {os: macos-15-intel, rid: osx-x64}
           - {os: windows-2022, rid: win-x64}
           - {os: windows-2022, rid: win-arm64}
     runs-on: ${{ matrix.os }}
@@ -53,6 +53,33 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - uses: dtolnay/rust-toolchain@stable
+        if: matrix.rid != 'win-arm64'
+        with:
+          targets: ${{ matrix.rid == 'osx-arm64' && 'aarch64-apple-darwin' || matrix.rid == 'osx-x64' && 'x86_64-apple-darwin' || 'x86_64-pc-windows-gnu' }}
+      - uses: msys2/setup-msys2@v2
+        if: matrix.rid == 'win-x64'
+        id: msys2
+        with:
+          msystem: MINGW64
+          cache: false
+          install: mingw-w64-x86_64-gcc
+      - name: Build SNI helper
+        if: matrix.rid != 'win-arm64'
+        env:
+          BUILD_RID: ${{ matrix.rid }}
+          CC_x86_64_pc_windows_gnu: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\gcc.exe
+          AR_x86_64_pc_windows_gnu: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\ar.exe
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\gcc.exe
+        run: python ci/build_sni.py --rid "$BUILD_RID" --output dist/sni-helper
+      - name: Run SNI Rust unit tests
+        if: matrix.rid != 'win-arm64'
+        env:
+          CC_x86_64_pc_windows_gnu: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\gcc.exe
+          AR_x86_64_pc_windows_gnu: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\ar.exe
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: ${{ steps.msys2.outputs.msys2-location }}\mingw64\bin\gcc.exe
+          SNI_TEST_TARGET: ${{ matrix.rid == 'osx-arm64' && 'aarch64-apple-darwin' || matrix.rid == 'osx-x64' && 'x86_64-apple-darwin' || 'x86_64-pc-windows-gnu' }}
+        run: cargo test --manifest-path third_party/sni-spoofing-rust/Cargo.toml --locked --target "$SNI_TEST_TARGET" --lib --bin sni-spoof-helper
       - name: Run WARP tests on the runner
         run: |
           python -m unittest discover -s ci -p 'test_*.py'

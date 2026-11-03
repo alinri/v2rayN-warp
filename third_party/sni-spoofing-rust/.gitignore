@@ -1,0 +1,7 @@
+/target
+/dist
+
+/bins
+# The parent .NET repository ignores every bin directory; these are Rust sources.
+!/src/bin/
+!/src/bin/*.rs

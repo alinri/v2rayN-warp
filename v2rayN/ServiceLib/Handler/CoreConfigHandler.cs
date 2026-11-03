@@ -33,16 +33,35 @@ public static class CoreConfigHandler
         {
             return result;
         }
+        if (config.SniSpoofItem.Enabled && Path.GetFileName(fileName) != Global.CorePreConfigFileName)
+        {
+            try
+            {
+                if (node.ConfigType == EConfigType.Custom || AppManager.Instance.GetCoreType(node, node.ConfigType) != ECoreType.Xray)
+                    throw new InvalidOperationException("SNI Spoofing requires a regular Xray profile.");
+                result.Data = await SniSpoofService.Prepare(result.Data!.ToString()!);
+            }
+            catch (Exception ex)
+            {
+                if (!SniSpoofService.HasActiveSession)
+                { config.SniSpoofItem.Enabled = false; config.WarpChainItem.Enabled = SniSpoofService.PreviousWarp; await ConfigHandler.SaveConfig(config); }
+                SniSpoofService.NotifyFailure(ex.Message);
+                return new RetResult(false, "SNI: " + ex.Message);
+            }
+        }
         // The TUN pre-service only feeds the main Xray core over loopback.
-        if (config.WarpChainItem.Enabled && Path.GetFileName(fileName) != Global.CorePreConfigFileName)
+        if (config.WarpChainItem.Enabled && !config.SniSpoofItem.Enabled && Path.GetFileName(fileName) != Global.CorePreConfigFileName)
         {
             result = ApplyWarp(config, result, AppManager.Instance.GetCoreType(node, node.ConfigType), node.ConfigType == EConfigType.Custom);
-            if (!result.Success) return result;
+            if (!result.Success)
+                return result;
         }
         if (fileName.IsNotEmpty() && result.Data != null)
         {
-            if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName!, result.Data.ToString()!, backupExisting: false);
-            else await File.WriteAllTextAsync(fileName, result.Data.ToString());
+            if (config.WarpChainItem.Enabled || config.SniSpoofItem.Enabled)
+                PrivateWarpProfileStore.Save(fileName!, result.Data.ToString()!, backupExisting: false);
+            else
+                await File.WriteAllTextAsync(fileName, result.Data.ToString());
         }
 
         return result;
@@ -50,7 +69,8 @@ public static class CoreConfigHandler
 
     private static RetResult ApplyWarp(Config config, RetResult result, ECoreType coreType, bool custom = false)
     {
-        if (!result.Success || !config.WarpChainItem.Enabled) return result;
+        if (!result.Success || !config.WarpChainItem.Enabled)
+            return result;
         if (coreType != ECoreType.Xray || custom)
             return new RetResult(false, "WARP needs a regular Xray profile. Select Xray as the core.");
         try
@@ -124,13 +144,21 @@ public static class CoreConfigHandler
         {
             result = await new CoreConfigV2rayService(config).GenerateClientSpeedtestConfig(selecteds);
         }
+        if (config.SniSpoofItem.Enabled && result.Success)
+        {
+            try
+            { result.Data = SniSpoofService.ApplyVerified(result.Data!.ToString()!); }
+            catch (Exception ex) { return new RetResult(false, ex.Message); }
+        }
         result = ApplyWarp(config, result, coreType);
         if (result.Success != true)
         {
             return result;
         }
-        if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
-        else await File.WriteAllTextAsync(fileName, result.Data.ToString());
+        if (config.WarpChainItem.Enabled || config.SniSpoofItem.Enabled)
+            PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
+        else
+            await File.WriteAllTextAsync(fileName, result.Data.ToString());
         return result;
     }
 
@@ -149,14 +177,22 @@ public static class CoreConfigHandler
         {
             result = await new CoreConfigV2rayService(config).GenerateClientSpeedtestConfig(node, port);
         }
+        if (config.SniSpoofItem.Enabled && result.Success)
+        {
+            try
+            { result.Data = SniSpoofService.ApplyVerified(result.Data!.ToString()!); }
+            catch (Exception ex) { return new RetResult(false, ex.Message); }
+        }
         result = ApplyWarp(config, result, AppManager.Instance.GetCoreType(node, node.ConfigType));
         if (result.Success != true)
         {
             return result;
         }
 
-        if (config.WarpChainItem.Enabled) PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
-        else await File.WriteAllTextAsync(fileName, result.Data.ToString());
+        if (config.WarpChainItem.Enabled || config.SniSpoofItem.Enabled)
+            PrivateWarpProfileStore.Save(fileName, result.Data.ToString()!, backupExisting: false);
+        else
+            await File.WriteAllTextAsync(fileName, result.Data.ToString());
         return result;
     }
 }

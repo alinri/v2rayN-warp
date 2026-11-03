@@ -33,3 +33,5 @@ Reject(transformed.ToJsonString(), warp, "Reject duplicate tags");
 Reject("""{"outbounds":[{"protocol":"freedom"}]}""", warp, "Reject a config without a proxy");
 Console.WriteLine("PASS: WARP chaining, existing chains, direct rules, DNS, interface isolation and invalid profiles");
 await WarpRegistrationTests.RunAsync();
+
+SniSpoofTests.Run();

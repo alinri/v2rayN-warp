@@ -194,6 +194,7 @@ public partial class CoreConfigSingboxService
             }
         }
 
+        directExeSet.Add(Utils.GetExeName("sni-spoof-helper"));
         lstDnsExe = new List<string>(dnsExeSet);
         lstDirectExe = new List<string>(directExeSet);
     }

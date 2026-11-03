@@ -43,3 +43,12 @@ on 3 November 2026. Its Actions Artifacts count was zero. Local macOS ZIP
 packaging, bundled-core presence, SHA-256 and private-data exclusion were also
 checked. Release state transitions and refusal to overwrite published assets
 have unit coverage; publishing itself is triggered by a tag push.
+
+The personal build now includes the pinned SNI spoofing helper on macOS ARM64,
+macOS Intel and Windows x64. Windows ARM64 builds omit it and report the feature
+as unavailable. `ci/build_sni.py` builds from vendored Rust source with a locked
+Cargo dependency graph; Windows additionally verifies the official WinDivert
+archive before packaging its signed driver. Helper source, upstream revision and
+licenses accompany the binary. See [the Persian usage guide](../SNI-SPOOFING.fa.md).
+The earlier CI validation above predates this feature; its new cross-platform
+jobs still need a fresh build-only run.

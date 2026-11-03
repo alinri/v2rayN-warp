@@ -12,6 +12,13 @@
     mc:Ignorable="d">
     <Grid>
         <DockPanel Margin="{StaticResource Margin8}">
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="8,8,0,0">
+                <CheckBox x:Name="chkEnableSni" Content="SNI Spoofing" Margin="8,0" VerticalAlignment="Center" />
+                <Button x:Name="btnScanSni" Content="Rescan" Margin="4,0" />
+                <Button x:Name="btnSniDetails" Content="SNI results" Margin="4,0" />
+                <Button x:Name="btnCancelSni" Content="Cancel scan" Margin="4,0" />
+                <TextBlock x:Name="txtSniStatus" MaxWidth="600" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </StackPanel>
             <StackPanel
                 VerticalAlignment="Center"
                 Margin="{StaticResource MarginLr8}"

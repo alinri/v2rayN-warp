@@ -69,7 +69,7 @@ public class CoreManager
         var result = await CoreConfigHandler.GenerateClientConfig(node, fileName);
         if (result.Success != true)
         {
-            if (_config.WarpChainItem.Enabled)
+            if (_config.WarpChainItem.Enabled && !result.Msg.StartsWith("SNI:", StringComparison.Ordinal))
                 await CoreStop();
             await UpdateFunc(true, result.Msg);
             return;
@@ -79,6 +79,7 @@ public class CoreManager
         await UpdateFunc(false, $"{Utils.GetRuntimeInfo()}");
         await UpdateFunc(false, string.Format(ResUI.StartService, DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss")));
         await CoreStop();
+        await SniSpoofService.RetirePrevious();
         await Task.Delay(100);
 
         if (Utils.IsWindows() && _config.TunModeItem.EnableTun)

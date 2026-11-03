@@ -89,6 +89,24 @@ public class StatusBarViewModel : MyReactiveObject
 
     [Reactive]
     public bool EnableWarp { get; set; }
+    [Reactive] public bool EnableSni { get; set; }
+    [Reactive] public string SniStatus { get; set; } = "SNI: off";
+    public async Task RescanSni() { SniSpoofService.Invalidate(); if (EnableSni) AppEvents.ReloadRequested.Publish(); await Task.CompletedTask; }
+    public void CancelSni() => SniSpoofService.Cancel();
+    private async Task DoEnableSni()
+    {
+        if (_config.SniSpoofItem.Enabled == EnableSni)
+            return;
+        if (EnableSni && !SniSpoofService.Supported)
+        { EnableSni = false; NoticeManager.Instance.SendMessageEx("SNI Spoofing is unavailable on Windows ARM64."); return; }
+        if (EnableSni)
+        { SniSpoofService.PreviousWarp = _config.WarpChainItem.Enabled; _config.WarpChainItem.Enabled = false; EnableWarp = false; }
+        else
+        { _config.SniSpoofItem.Enabled = false; await SniSpoofService.Stop(); }
+        _config.SniSpoofItem.Enabled = EnableSni;
+        await ConfigHandler.SaveConfig(_config);
+        AppEvents.ReloadRequested.Publish();
+    }
 
     [Reactive]
     public bool BlIsNonWindows { get; set; }
@@ -104,6 +122,9 @@ public class StatusBarViewModel : MyReactiveObject
         BlSystemProxyPacVisible = Utils.IsWindows();
         BlIsNonWindows = Utils.IsNonWindows();
         EnableWarp = _config.WarpChainItem.Enabled;
+        EnableSni = _config.SniSpoofItem.Enabled;
+        SniSpoofService.StatusChanged += value => Observable.Return(value).ObserveOn(RxApp.MainThreadScheduler).Subscribe(x => { SniStatus = x; EnableSni = _config.SniSpoofItem.Enabled; EnableWarp = _config.WarpChainItem.Enabled; });
+        this.WhenAnyValue(x => x.EnableSni).Skip(1).Subscribe(async _ => await DoEnableSni());
 
         if (_config.TunModeItem.EnableTun && AllowEnableTun())
         {
@@ -471,10 +492,12 @@ public class StatusBarViewModel : MyReactiveObject
 
     private async Task DoEnableWarp()
     {
-        if (_config.WarpChainItem.Enabled == EnableWarp) return;
+        if (_config.WarpChainItem.Enabled == EnableWarp)
+            return;
         if (EnableWarp)
         {
-            try { _ = JsonNode.Parse(WarpChainService.ReadProfile(_config)); }
+            try
+            { _ = JsonNode.Parse(WarpChainService.ReadProfile(_config)); }
             catch
             {
                 EnableWarp = false;
@@ -482,6 +505,8 @@ public class StatusBarViewModel : MyReactiveObject
                 return;
             }
         }
+        if (EnableWarp)
+        { _config.SniSpoofItem.Enabled = false; EnableSni = false; await SniSpoofService.Stop(); }
         _config.WarpChainItem.Enabled = EnableWarp;
         await ConfigHandler.SaveConfig(_config);
         NoticeManager.Instance.SendMessageEx(EnableWarp ? "Client → WARP → selected server" : "WARP off: connecting to the selected server directly");

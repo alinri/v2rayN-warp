@@ -21,7 +21,10 @@ shutil.copytree(args.publish_dir, macos, dirs_exist_ok=True)
 shutil.copytree(args.core_bin_dir, macos / 'bin', dirs_exist_ok=True)
 shutil.copy2(args.xray, macos / 'bin/xray/xray')
 (macos / 'NotStoreConfigHere.txt').write_text('Store personal configuration outside the bundle.\n')
-shutil.copy2(args.publish_dir / 'v2rayN.icns', resources / 'AppIcon.icns')
+icon = args.publish_dir / 'v2rayN.icns'
+if not icon.exists():
+    icon = Path(__file__).parent / 'v2rayN/v2rayN.Desktop/v2rayN.icns'
+shutil.copy2(icon, resources / 'AppIcon.icns')
 shutil.copy2(Path(__file__).parent / 'LICENSE', resources / 'LICENSE-v2rayN.txt')
 info = dict(CFBundleDevelopmentRegion='English', CFBundleDisplayName='v2rayN WARP',
             CFBundleExecutable='v2rayN', CFBundleIconFile='AppIcon',

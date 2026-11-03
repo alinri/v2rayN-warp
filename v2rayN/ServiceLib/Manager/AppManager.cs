@@ -118,6 +118,7 @@ public sealed class AppManager
             await ProfileExManager.Instance.SaveTo();
             await StatisticsManager.Instance.SaveTo();
             await CoreManager.Instance.CoreStop();
+            await SniSpoofService.Stop();
             StatisticsManager.Instance.Close();
 
             Logging.SaveLog("AppExitAsync End");

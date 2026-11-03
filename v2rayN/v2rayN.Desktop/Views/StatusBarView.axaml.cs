@@ -1,3 +1,4 @@
+using ServiceLib.Services;
 using DialogHostAvalonia;
 using v2rayN.Desktop.Common;
 
@@ -28,6 +29,15 @@ public partial class StatusBarView : ReactiveUserControl<StatusBarViewModel>
             }
         };
 
+        btnScanSni.Click += async (_, _) => await ViewModel!.RescanSni();
+        btnSniDetails.Click += async (_, _) => {
+            if (TopLevel.GetTopLevel(this) is Window owner) {
+                var dialog = new Window { Title="SNI results", Width=600, Height=400, Content=new TextBox { Text=string.Join("\n", SniSpoofService.Results), IsReadOnly=true, AcceptsReturn=true, TextWrapping=Avalonia.Media.TextWrapping.Wrap } };
+                await dialog.ShowDialog(owner);
+            }
+        };
+        btnCancelSni.Click += (_, _) => ViewModel!.CancelSni();
+
         this.WhenActivated(disposables =>
         {
             //status bar
@@ -39,6 +49,8 @@ public partial class StatusBarView : ReactiveUserControl<StatusBarViewModel>
             this.OneWayBind(ViewModel, vm => vm.SpeedDirectDisplay, v => v.txtSpeedDirectDisplay.Text).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.EnableTun, v => v.togEnableTun.IsChecked).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.EnableWarp, v => v.chkEnableWarp.IsChecked).DisposeWith(disposables);
+            this.Bind(ViewModel, vm => vm.EnableSni, v => v.chkEnableSni.IsChecked).DisposeWith(disposables);
+            this.OneWayBind(ViewModel, vm => vm.SniStatus, v => v.txtSniStatus.Text).DisposeWith(disposables);
 
             this.Bind(ViewModel, vm => vm.SystemProxySelected, v => v.cmbSystemProxy.SelectedIndex).DisposeWith(disposables);
             this.Bind(ViewModel, vm => vm.SelectedRouting, v => v.cmbRoutings2.SelectedItem).DisposeWith(disposables);

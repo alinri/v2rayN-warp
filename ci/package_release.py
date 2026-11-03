@@ -62,6 +62,10 @@ def main():
         bins = [p for p in (work / 'cores').rglob('bin') if (p / 'xray').is_dir()]
         assert len(bins) == 1, 'Unexpected official core bundle layout'
         bin_dir = bins[0]
+        helper = ROOT / 'dist/sni-helper'
+        if args.rid != 'win-arm64':
+            assert helper.is_dir(), 'Build the matching SNI helper first'
+            shutil.copytree(helper, bin_dir / 'sni', dirs_exist_ok=True)
         exe = 'xray.exe' if args.rid.startswith('win-') else 'xray'
         xray = work / 'xray' / exe
         assert xray.is_file()
