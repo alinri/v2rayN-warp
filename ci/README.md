@@ -50,5 +50,11 @@ as unavailable. `ci/build_sni.py` builds from vendored Rust source with a locked
 Cargo dependency graph; Windows additionally verifies the official WinDivert
 archive before packaging its signed driver. Helper source, upstream revision and
 licenses accompany the binary. See [the Persian usage guide](../SNI-SPOOFING.fa.md).
-The earlier CI validation above predates this feature; its new cross-platform
-jobs still need a fresh build-only run.
+All four builds including the SNI helper checks passed in the
+[SNI build-only run](https://github.com/alinri/v2rayN-warp/actions/runs/41729708566)
+on 4 November 2026. Its Actions Artifacts list was empty; Release publishing
+was skipped. macOS ARM64, macOS Intel and Windows x64 execute the matching Rust
+unit tests and unprivileged helper control-channel smoke test. Windows ARM64
+builds the desktop without the unavailable SNI helper. Real packet injection and
+WS/XHTTP transfer were checked locally on macOS ARM64; Windows and Intel packet
+injection still need tests on those systems.
