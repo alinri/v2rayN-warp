@@ -258,7 +258,75 @@ public static class SniSpoofService
         }
         finally { foreach (var t in trials) { t.Dispose(); if (t.Id != activeId && ControlAlive) { try { await Command(new { cmd = "stop", id = t.Id }, CancellationToken.None); } catch { } } } scan?.Dispose(); scan = null; Gate.Release(); }
     }
-    public static string ApplyVerified(string json) { if (activeKey == null || !HasActiveSession) throw new InvalidOperationException("SNI: select this profile and scan first."); var p = SniSpoofConfig.Proxy(json); var (a, port) = SniSpoofConfig.Endpoint(p); if (!activeKey.StartsWith(a + ":" + port + ":" + Interface() + ":", StringComparison.Ordinal)) throw new InvalidOperationException("SNI: this destination needs its own scan."); return SniSpoofConfig.Apply(json, activePort); }
+    /// <summary>A test run leases its own listeners and releases them after its cores stop.</summary>
+    public sealed class SpeedtestSession : IAsyncDisposable
+    {
+        private readonly Dictionary<string, int> ports = new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<string> ids = new();
+        private bool disposed;
+
+        public async Task<(string Json, Dictionary<string, string> Errors)> Apply(string json)
+        {
+            await Gate.WaitAsync();
+            try
+            {
+                if (disposed) throw new ObjectDisposedException(nameof(SpeedtestSession));
+                if (activeKey == null || !HasActiveSession)
+                    throw new InvalidOperationException("SNI: enable and complete the SNI scan first.");
+                var iface = Interface();
+                var sni = AppManager.Instance.Config.SniSpoofItem.LastSelectedSni;
+                var locals = NetworkInterface.GetAllNetworkInterfaces().First(x => x.Name == iface)
+                    .GetIPProperties().UnicastAddresses.Select(x => x.Address)
+                    .Where(x => !IPAddress.IsLoopback(x) && !x.IsIPv6LinkLocal).ToArray();
+                return await SniSpoofConfig.ApplyForSpeedtest(json, async (address, port) =>
+                {
+                    if (port != 443) throw new InvalidOperationException("SNI tests require Cloudflare port 443.");
+                    var key = address + ":" + port + ":" + iface + ":" + sni + ":" + networkStamp;
+                    if (ports.TryGetValue(key, out var cached)) return cached;
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    IPAddress[] ips;
+                    try { ips = await Dns.GetHostAddressesAsync(address, timeout.Token); }
+                    catch (OperationCanceledException) { throw new TimeoutException("SNI test destination DNS lookup timed out."); }
+                    var ip = ips.Where(SniSpoofConfig.IsCloudflare)
+                        .Where(x => locals.Any(l => l.AddressFamily == x.AddressFamily))
+                        .OrderBy(x => x.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).FirstOrDefault()
+                        ?? throw new InvalidOperationException("The test destination is not a reachable Cloudflare address.");
+                    var id = Guid.NewGuid().ToString("N");
+                    var local = Port();
+                    ids.Add(id);
+                    try
+                    {
+                        await Command(new { cmd = "start", id, listen = "127.0.0.1:" + local,
+                            connect = new IPEndPoint(ip, 443).ToString(), sni, @interface = iface,
+                            interfaceIndex = GetInterfaceIndex(iface, ip.AddressFamily),
+                            localIp = locals.First(x => x.AddressFamily == ip.AddressFamily).ToString() }, timeout.Token);
+                    }
+                    catch (OperationCanceledException) { throw new TimeoutException("SNI test forwarder did not respond in time."); }
+                    ports[key] = local;
+                    return local;
+                });
+            }
+            finally { Gate.Release(); }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await Gate.WaitAsync();
+            try
+            {
+                if (disposed) return;
+                disposed = true;
+                foreach (var id in ids)
+                {
+                    try { if (ControlAlive) await Command(new { cmd = "stop", id }, CancellationToken.None); }
+                    catch { }
+                }
+                ids.Clear();
+                ports.Clear();
+            }
+            finally { Gate.Release(); }
+        }
+    }
     // Called after the old main core stops, so probes never interrupt its connections.
     public static async Task RetirePrevious()
     {

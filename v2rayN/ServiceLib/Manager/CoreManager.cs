@@ -96,12 +96,12 @@ public class CoreManager
         }
     }
 
-    public async Task<ProcessService?> LoadCoreConfigSpeedtest(List<ServerTestItem> selecteds)
+    public async Task<ProcessService?> LoadCoreConfigSpeedtest(List<ServerTestItem> selecteds, SniSpoofService.SpeedtestSession? sniSession = null)
     {
         var coreType = selecteds.Any(t => Global.SingboxOnlyConfigType.Contains(t.ConfigType)) ? ECoreType.sing_box : ECoreType.Xray;
         var fileName = string.Format(Global.CoreSpeedtestConfigFileName, Utils.GetGuid(false));
         var configPath = Utils.GetBinConfigPath(fileName);
-        var result = await CoreConfigHandler.GenerateClientSpeedtestConfig(_config, configPath, selecteds, coreType);
+        var result = await CoreConfigHandler.GenerateClientSpeedtestConfig(_config, configPath, selecteds, coreType, sniSession);
         await UpdateFunc(false, result.Msg);
         if (result.Success != true)
         {
@@ -115,7 +115,7 @@ public class CoreManager
         return await RunProcess(coreInfo, fileName, true, false);
     }
 
-    public async Task<ProcessService?> LoadCoreConfigSpeedtest(ServerTestItem testItem)
+    public async Task<ProcessService?> LoadCoreConfigSpeedtest(ServerTestItem testItem, SniSpoofService.SpeedtestSession? sniSession = null)
     {
         var node = await AppManager.Instance.GetProfileItem(testItem.IndexId);
         if (node is null)
@@ -125,7 +125,7 @@ public class CoreManager
 
         var fileName = string.Format(Global.CoreSpeedtestConfigFileName, Utils.GetGuid(false));
         var configPath = Utils.GetBinConfigPath(fileName);
-        var result = await CoreConfigHandler.GenerateClientSpeedtestConfig(_config, node, testItem, configPath);
+        var result = await CoreConfigHandler.GenerateClientSpeedtestConfig(_config, node, testItem, configPath, sniSession);
         if (result.Success != true)
         {
             return null;

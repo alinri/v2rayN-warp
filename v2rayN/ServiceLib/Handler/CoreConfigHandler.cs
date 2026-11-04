@@ -133,8 +133,9 @@ public static class CoreConfigHandler
         }
     }
 
-    public static async Task<RetResult> GenerateClientSpeedtestConfig(Config config, string fileName, List<ServerTestItem> selecteds, ECoreType coreType)
+    public static async Task<RetResult> GenerateClientSpeedtestConfig(Config config, string fileName, List<ServerTestItem> selecteds, ECoreType coreType, SniSpoofService.SpeedtestSession? sniSession = null)
     {
+        foreach (var item in selecteds) item.Error = null;
         var result = new RetResult();
         if (coreType == ECoreType.sing_box)
         {
@@ -147,8 +148,20 @@ public static class CoreConfigHandler
         if (config.SniSpoofItem.Enabled && result.Success)
         {
             try
-            { result.Data = SniSpoofService.ApplyVerified(result.Data!.ToString()!); }
-            catch (Exception ex) { return new RetResult(false, ex.Message); }
+            {
+                if (coreType != ECoreType.Xray || sniSession == null)
+                    throw new InvalidOperationException("SNI tests require a running SNI session and regular Xray profiles.");
+                var applied = await sniSession.Apply(result.Data!.ToString()!);
+                result.Data = applied.Json;
+                foreach (var item in selecteds)
+                    if (applied.Errors.TryGetValue(Global.ProxyTag + item.Port, out var error))
+                    { item.AllowTest = false; item.Error = error; }
+            }
+            catch (Exception ex)
+            {
+                foreach (var item in selecteds) { item.AllowTest = false; item.Error = ex.Message; }
+                return new RetResult(false, ex.Message);
+            }
         }
         result = ApplyWarp(config, result, coreType);
         if (result.Success != true)
@@ -162,8 +175,9 @@ public static class CoreConfigHandler
         return result;
     }
 
-    public static async Task<RetResult> GenerateClientSpeedtestConfig(Config config, ProfileItem node, ServerTestItem testItem, string fileName)
+    public static async Task<RetResult> GenerateClientSpeedtestConfig(Config config, ProfileItem node, ServerTestItem testItem, string fileName, SniSpoofService.SpeedtestSession? sniSession = null)
     {
+        testItem.Error = null;
         var result = new RetResult();
         var initPort = AppManager.Instance.GetLocalPort(EInboundProtocol.speedtest);
         var port = Utils.GetFreePort(initPort + testItem.QueueNum);
@@ -180,8 +194,15 @@ public static class CoreConfigHandler
         if (config.SniSpoofItem.Enabled && result.Success)
         {
             try
-            { result.Data = SniSpoofService.ApplyVerified(result.Data!.ToString()!); }
-            catch (Exception ex) { return new RetResult(false, ex.Message); }
+            {
+                if (AppManager.Instance.GetCoreType(node, node.ConfigType) != ECoreType.Xray || sniSession == null)
+                    throw new InvalidOperationException("SNI tests require a running SNI session and regular Xray profiles.");
+                var applied = await sniSession.Apply(result.Data!.ToString()!);
+                if (applied.Errors.Count > 0)
+                    throw new InvalidOperationException(applied.Errors.Values.First());
+                result.Data = applied.Json;
+            }
+            catch (Exception ex) { testItem.Error = ex.Message; return new RetResult(false, ex.Message); }
         }
         result = ApplyWarp(config, result, AppManager.Instance.GetCoreType(node, node.ConfigType));
         if (result.Success != true)

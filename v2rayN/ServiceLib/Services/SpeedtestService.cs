@@ -39,6 +39,8 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
 
         var lstSelected = await GetClearItem(actionType, selecteds);
 
+        await using var sniSession = _config.SniSpoofItem.Enabled && actionType != ESpeedActionType.Tcping
+            ? new SniSpoofService.SpeedtestSession() : null;
         switch (actionType)
         {
             case ESpeedActionType.Tcping:
@@ -46,15 +48,15 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
                 break;
 
             case ESpeedActionType.Realping:
-                await RunRealPingBatchAsync(lstSelected, exitLoopKey);
+                await RunRealPingBatchAsync(lstSelected, exitLoopKey, sniSession);
                 break;
 
             case ESpeedActionType.Speedtest:
-                await RunMixedTestAsync(lstSelected, 1, true, exitLoopKey);
+                await RunMixedTestAsync(lstSelected, 1, true, exitLoopKey, sniSession);
                 break;
 
             case ESpeedActionType.Mixedtest:
-                await RunMixedTestAsync(lstSelected, _config.SpeedTestItem.MixedConcurrencyCount, true, exitLoopKey);
+                await RunMixedTestAsync(lstSelected, _config.SpeedTestItem.MixedConcurrencyCount, true, exitLoopKey, sniSession);
                 break;
         }
     }
@@ -139,7 +141,7 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
         await Task.WhenAll(tasks);
     }
 
-    private async Task RunRealPingBatchAsync(List<ServerTestItem> lstSelected, string exitLoopKey, int pageSize = 0)
+    private async Task RunRealPingBatchAsync(List<ServerTestItem> lstSelected, string exitLoopKey, SniSpoofService.SpeedtestSession? sniSession = null, int pageSize = 0)
     {
         if (pageSize <= 0)
         {
@@ -150,7 +152,7 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
         List<ServerTestItem> lstFailed = new();
         foreach (var lst in lstTest)
         {
-            var ret = await RunRealPingAsync(lst, exitLoopKey);
+            var ret = await RunRealPingAsync(lst, exitLoopKey, sniSession);
             if (ret == false)
             {
                 lstFailed.AddRange(lst);
@@ -172,24 +174,25 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
 
             if (pageSizeNext > _config.SpeedTestItem.MixedConcurrencyCount)
             {
-                await RunRealPingBatchAsync(lstFailed, exitLoopKey, pageSizeNext);
+                await RunRealPingBatchAsync(lstFailed, exitLoopKey, sniSession, pageSizeNext);
             }
             else
             {
-                await RunMixedTestAsync(lstSelected, _config.SpeedTestItem.MixedConcurrencyCount, false, exitLoopKey);
+                await RunMixedTestAsync(lstSelected, _config.SpeedTestItem.MixedConcurrencyCount, false, exitLoopKey, sniSession);
             }
         }
     }
 
-    private async Task<bool> RunRealPingAsync(List<ServerTestItem> selecteds, string exitLoopKey)
+    private async Task<bool> RunRealPingAsync(List<ServerTestItem> selecteds, string exitLoopKey, SniSpoofService.SpeedtestSession? sniSession)
     {
         ProcessService processService = null;
         try
         {
-            processService = await CoreManager.Instance.LoadCoreConfigSpeedtest(selecteds);
+            processService = await CoreManager.Instance.LoadCoreConfigSpeedtest(selecteds, sniSession);
             if (processService is null)
             {
-                return false;
+                foreach (var item in selecteds.Where(x => x.Error != null)) await ReportTestError(item);
+                return selecteds.All(x => x.Error != null);
             }
             await Task.Delay(1000);
 
@@ -198,7 +201,8 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
             {
                 if (!it.AllowTest)
                 {
-                    await UpdateFunc(it.IndexId, ResUI.SpeedtestingSkip);
+                    if (it.Error != null) await ReportTestError(it);
+                    else await UpdateFunc(it.IndexId, ResUI.SpeedtestingSkip);
                     continue;
                 }
 
@@ -228,7 +232,7 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
         return true;
     }
 
-    private async Task RunMixedTestAsync(List<ServerTestItem> selecteds, int concurrencyCount, bool blSpeedTest, string exitLoopKey)
+    private async Task RunMixedTestAsync(List<ServerTestItem> selecteds, int concurrencyCount, bool blSpeedTest, string exitLoopKey, SniSpoofService.SpeedtestSession? sniSession)
     {
         using var concurrencySemaphore = new SemaphoreSlim(concurrencyCount);
         var downloadHandle = new DownloadService();
@@ -247,10 +251,11 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
                 ProcessService processService = null;
                 try
                 {
-                    processService = await CoreManager.Instance.LoadCoreConfigSpeedtest(it);
+                    processService = await CoreManager.Instance.LoadCoreConfigSpeedtest(it, sniSession);
                     if (processService is null)
                     {
-                        await UpdateFunc(it.IndexId, "", ResUI.FailedToRunCore);
+                        if (it.Error != null) await ReportTestError(it);
+                        else await UpdateFunc(it.IndexId, "", ResUI.FailedToRunCore);
                         return;
                     }
 
@@ -292,13 +297,26 @@ public class SpeedtestService(Config config, Func<SpeedTestResult, Task> updateF
         await Task.WhenAll(tasks);
     }
 
+    private async Task ReportTestError(ServerTestItem item)
+    {
+        ProfileExManager.Instance.SetTestDelay(item.IndexId, -1);
+        await UpdateFunc(item.IndexId, "-1", item.Error!);
+    }
+
     private async Task<int> DoRealPing(ServerTestItem it)
     {
         var webProxy = new WebProxy($"socks5://{Global.Loopback}:{it.Port}");
         var responseTime = await ConnectionHandler.GetRealPingTime(_config.SpeedTestItem.SpeedPingTestUrl, webProxy, 10);
 
         ProfileExManager.Instance.SetTestDelay(it.IndexId, responseTime);
-        await UpdateFunc(it.IndexId, responseTime.ToString());
+        var previous = (await ProfileExManager.Instance.GetProfileExs()).FirstOrDefault(x => x.IndexId == it.IndexId);
+        if (responseTime > 0 && (previous?.Message == ResUI.FailedToRunCore || previous?.Message?.StartsWith("SNI:", StringComparison.Ordinal) == true))
+        {
+            // A successful retest must not leave the earlier startup/SNI error visible.
+            await UpdateFunc(it.IndexId, responseTime.ToString(), previous.Speed > 0 ? previous.Speed.ToString("F1") : "—");
+            ProfileExManager.Instance.SetTestMessage(it.IndexId, "");
+        }
+        else await UpdateFunc(it.IndexId, responseTime.ToString());
         return responseTime;
     }
 

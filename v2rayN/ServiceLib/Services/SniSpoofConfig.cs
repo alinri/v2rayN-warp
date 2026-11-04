@@ -11,12 +11,18 @@ public static class SniSpoofConfig
         if (proxies.Count != 1)
             throw new InvalidOperationException("SNI Spoofing needs one regular Xray proxy.");
         var p = proxies[0];
+        ValidateProxy(p);
+        return p;
+    }
+    private static void ValidateProxy(JsonObject p)
+    {
+        if (p["protocol"]?.ToString() is not ("vless" or "vmess" or "trojan"))
+            throw new InvalidOperationException("SNI supports Xray VLESS, VMess and Trojan over Cloudflare TLS WS/XHTTP.");
         var s = p["streamSettings"];
         if (s?["security"]?.ToString() != "tls" || s["network"]?.ToString() is not ("ws" or "xhttp"))
             throw new InvalidOperationException("SNI Spoofing supports Cloudflare WS and XHTTP over TLS.");
         if (s["xhttpSettings"]?["extra"]?["downloadSettings"] != null || s["tlsSettings"]?["alpn"]?.AsArray().Any(x => x?.ToString() == "h3") == true || s["sockopt"]?["dialerProxy"] != null || p["proxySettings"] != null)
             throw new InvalidOperationException("SNI Spoofing cannot use UDP or an existing proxy chain.");
-        return p;
     }
     public static (string Address, int Port) Endpoint(JsonObject p)
     {
@@ -27,6 +33,11 @@ public static class SniSpoofConfig
     public static string Apply(string json, int port)
     {
         var p = Proxy(json);
+        ApplyProxy(p, port);
+        return p.Root.ToJsonString();
+    }
+    private static void ApplyProxy(JsonObject p, int port)
+    {
         var (address, _) = Endpoint(p);
         var stream = p["streamSettings"]!.AsObject();
         var tls = (stream["tlsSettings"] ??= new JsonObject()).AsObject();
@@ -38,7 +49,34 @@ public static class SniSpoofConfig
         server["port"] = port;
         if (stream["sockopt"] is JsonObject options)
             options.Remove("interface");
-        return p.Root.ToJsonString();
+    }
+    /// <summary>Isolate unsupported test outbounds without rejecting the whole batch.</summary>
+    public static async Task<(string Json, Dictionary<string, string> Errors)> ApplyForSpeedtest(
+        string json, Func<string, int, Task<int>> forwarder)
+    {
+        var root = JsonNode.Parse(json)!.AsObject();
+        var errors = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var p in root["outbounds"]!.AsArray().OfType<JsonObject>())
+        {
+            if (p["protocol"]?.ToString() is "freedom" or "blackhole" or "dns" or "loopback") continue;
+            var tag = p["tag"]?.ToString() ?? "";
+            try
+            {
+                ValidateProxy(p);
+                var (address, port) = Endpoint(p);
+                ApplyProxy(p, await forwarder(address, port));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                errors[tag] = "SNI: " + ex.Message;
+                // Preserve the routing tag, but never silently test this node directly.
+                p.Clear();
+                p["tag"] = tag;
+                p["protocol"] = "blackhole";
+                p["settings"] = new JsonObject();
+            }
+        }
+        return (root.ToJsonString(), errors);
     }
     public static bool IsCloudflare(IPAddress ip)
     {

@@ -23,6 +23,41 @@ public static class SniSpoofTests
   var absent=json.Replace("\"serverName\":\"hi.mislog.shop\",","");Check(JsonNode.Parse(SniSpoofConfig.Apply(absent,40443))!["outbounds"]![0]!["streamSettings"]!["tlsSettings"]!["serverName"]!.ToString()=="hi.mislog.shop","preserve effective SNI before loopback rewrite");
   var emptyHost=absent.Replace("\"wsSettings\":{", "\"wsSettings\":{\"host\":\"\",");Check(JsonNode.Parse(SniSpoofConfig.Apply(emptyHost,40443))!["outbounds"]![0]!["streamSettings"]!["tlsSettings"]!["serverName"]!.ToString()=="hi.mislog.shop","ignore empty host when preserving effective SNI");
   var xhttp=json.Replace("\"network\":\"ws\"", "\"network\":\"xhttp\"");Check(SniSpoofConfig.Endpoint(SniSpoofConfig.Proxy(SniSpoofConfig.Apply(xhttp,40444))).Port==40444,"XHTTP endpoint rewrite");
+  CheckSpeedtestBatch(json);
   Console.WriteLine("PASS: SNI endpoint isolation, TLS identity, credentials, paths, routing and Cloudflare ranges");
  }
+ private static void CheckSpeedtestBatch(string json)
+ {
+  void Check(bool value,string why) { if(!value) throw new Exception(why); }
+  var source=JsonNode.Parse(json)!;
+  var ws=source["outbounds"]![0]!.DeepClone();ws["tag"]="proxy40001";
+  var xhttp=ws.DeepClone();xhttp["tag"]="proxy40002";xhttp["streamSettings"]!["network"]="xhttp";
+  xhttp["settings"]!["vnext"]![0]!["address"]="other.cloudflare.example";
+  xhttp["streamSettings"]!["tlsSettings"]!["serverName"]="other.cloudflare.example";
+  var unsupported=ws.DeepClone();unsupported["tag"]="proxy40003";unsupported["streamSettings"]!["security"]="reality";
+  var failed=ws.DeepClone();failed["tag"]="proxy40004";failed["settings"]!["vnext"]![0]!["address"]="unresolvable.example";
+  source["outbounds"]=new JsonArray(ws,xhttp,unsupported,failed,new JsonObject{["tag"]="direct",["protocol"]="freedom"});
+  source["routing"]=new JsonObject{["rules"]=new JsonArray(new JsonObject{["outboundTag"]="proxy40002",["inboundTag"]=new JsonArray("mixed40002")})};
+  var before=source.ToJsonString();var calls=new List<string>();
+  var result=SniSpoofConfig.ApplyForSpeedtest(before,(address,port)=> {
+   calls.Add(address);Check(port==443,"forward original destination port");
+   if(address=="unresolvable.example") throw new IOException("DNS failure fixture");
+   return Task.FromResult(address=="hi.mislog.shop"?45001:45002);
+  }).GetAwaiter().GetResult();
+  var output=JsonNode.Parse(result.Json)!;
+  Check(output["outbounds"]![0]!["settings"]!["vnext"]![0]!["port"]!.GetValue<int>()==45001,"WS batch forwarder");
+  Check(output["outbounds"]![1]!["settings"]!["vnext"]![0]!["port"]!.GetValue<int>()==45002,"separate destination forwarder");
+  for(int i=0;i<2;i++) {
+   Check(JsonNode.DeepEquals(source["outbounds"]![i]!["settings"]!["vnext"]![0]!["users"],output["outbounds"]![i]!["settings"]!["vnext"]![0]!["users"]),"preserve each node credentials");
+   Check(JsonNode.DeepEquals(source["outbounds"]![i]!["streamSettings"]!["tlsSettings"],output["outbounds"]![i]!["streamSettings"]!["tlsSettings"]),"preserve each node TLS identity");
+  }
+  Check(JsonNode.DeepEquals(source["routing"],output["routing"]),"keep independent test routing");
+  Check(output["outbounds"]![2]!["protocol"]!.ToString()=="blackhole" && output["outbounds"]![3]!["protocol"]!.ToString()=="blackhole","block incompatible/failed nodes without direct fallback");
+  Check(result.Errors.Keys.Order().SequenceEqual(new[]{"proxy40003","proxy40004"}),"return per-node errors without failing compatible nodes");
+  Check(calls.Count==3,"unsupported node must not create a listener");
+  Check(output["outbounds"]![4]!["protocol"]!.ToString()=="freedom","preserve service outbound");
+  Check(source.ToJsonString()==before,"batch source never mutated");
+  Console.WriteLine("PASS: mixed WS/XHTTP speedtest batches, per-node error isolation and original routing/TLS");
+ }
+
 }
