@@ -58,3 +58,11 @@ unit tests and unprivileged helper control-channel smoke test. Windows ARM64
 builds the desktop without the unavailable SNI helper. Real packet injection and
 WS/XHTTP transfer were checked locally on macOS ARM64; Windows and Intel packet
 injection still need tests on those systems.
+
+The SNI Real Delay regression fix also passed all four platform builds in
+[this build-only run](https://github.com/alinri/v2rayN-warp/actions/runs/41778190347).
+Its Actions Artifacts list was empty and publishing was skipped. Regression tests
+cover mixed WS/XHTTP batches, distinct destinations, TLS and routing preservation,
+and isolation of unsupported or failed nodes. Local UI checks verified individual
+and batch Real Delay with SNI enabled, temporary-listener cleanup and continued
+traffic on the active connection.
